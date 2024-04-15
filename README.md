@@ -12,10 +12,12 @@ For my Ubuntu, but also has vscode stuff
 
 ## Download
 
-Clone repo, cd into repo, stow . to symlink fils, need to be in home dir
+- download all the zsh plugins
+- <prefix>+I (prefix + capital i) to install tmux stuff within tmux
 
 ```zsh
   git clone https://github.com/jakobevangelista/dotfiles.git
   cd dotfiles
   stow .
 ```
+    
