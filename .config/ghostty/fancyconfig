@@ -1,0 +1,13 @@
+font-feature = -liga
+font-family = "GeistMono Nerd Font"
+theme = elementary
+macos-icon = xray
+keybind = ctrl+a>c=new_tab
+keybind = ctrl+a>v=new_split:right
+keybind = ctrl+a>s=new_split:down
+keybind = ctrl+j=goto_split:down
+keybind = ctrl+h=goto_split:left
+keybind = ctrl+l=goto_split:right
+keybind = ctrl+k=goto_split:up
+keybind = ctrl+a>z=toggle_fullscreen
+keybind = ctrl+a>x=close_surface

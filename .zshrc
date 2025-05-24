@@ -119,4 +119,5 @@ if [ -f '/Users/jakob/Downloads/google-cloud-sdk/path.zsh.inc' ]; then . '/Users
 # The next line enables shell command completion for gcloud.
 if [ -f '/Users/jakob/Downloads/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/jakob/Downloads/google-cloud-sdk/completion.zsh.inc'; fi
 
-# avante
+export PATH=$PATH:$(go env GOPATH)/bin
+export NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem"

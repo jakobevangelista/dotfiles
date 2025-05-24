@@ -44,14 +44,32 @@ return {
       -- lint.linters_by_ft['ruby'] = nil
       -- lint.linters_by_ft['terraform'] = nil
       -- lint.linters_by_ft['text'] = nil
+      -- Use eslint_d if available, fallback to eslint
+      local eslint_d_opts = {
+        cmd = "eslint_d",
+        args = {
+          "--format",
+          "json",
+          "--stdin",
+          "--stdin-filename",
+          function()
+            return vim.api.nvim_buf_get_name(0)
+          end,
+        },
+        stdin = true,
+        ignore_exitcode = true,
+        parser = require('lint.parser').from_json,
+      }
+
+      lint.linters.eslint_d = eslint_d_opts
 
       -- Create autocommand which carries out the actual linting
       -- on the specified events.
       local lint_augroup = vim.api.nvim_create_augroup('lint', { clear = true })
-      vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWritePost', 'InsertLeave' }, {
+      vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
         group = lint_augroup,
         callback = function()
-          lint.try_lint()
+          require("lint").try_lint()
         end,
       })
     end,

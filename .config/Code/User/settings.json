@@ -16,17 +16,13 @@
   "workbench.editor.showTabs": "single",
   "editor.minimap.renderCharacters": false,
   "editor.minimap.autohide": true,
-
-  // melkey settings
   "editor.lineNumbers": "relative",
   "javascript.updateImportsOnFileMove.enabled": "always",
   "editor.formatOnSave": true,
   "editor.suggest.insertMode": "replace",
-
   "vim.leader": "<Space>",
   "vim.hlsearch": true,
   "vim.normalModeKeyBindingsNonRecursive": [
-    // jakob normal mode settings
     {
       "before": ["<C-d>"],
       "after": ["<C-d>", "z", "z"]
@@ -35,50 +31,50 @@
       "before": ["<C-u>"],
       "after": ["<C-u>", "z", "z"]
     },
-
     {
       "before": ["n"],
       "after": ["n", "z", "z", "z", "v"]
     },
-
     {
       "before": ["N"],
       "after": ["N", "z", "z", "z", "V"]
     },
     {
-      "before": ["g", "H"],
-      "commands": [{ "command": "editor.action.showDefinitionPreviewHover" }]
+      "before": ["cmd+p"],
+      "after": ["leader", "s", "f"]
     },
-    // NAVIGATION
-    // switch b/w buffers
-    { "before": ["<S-h>"], "commands": [":bprevious"] },
-    { "before": ["<S-l>"], "commands": [":bnext"] },
-    // splits
-    { "before": ["leader", "v"], "commands": [":vsplit"] },
-    { "before": ["leader", "s"], "commands": [":split"] },
-
-    // panes
     {
-      "before": ["leader", "h"],
+      "before": ["g", "H"],
+      "commands": [
+        {
+          "command": "editor.action.showDefinitionPreviewHover"
+        }
+      ]
+    },
+    {
+      "before": ["<leader>", "v"],
+      "commands": [":vsplit"]
+    },
+    {
+      "before": ["leader", "s"],
+      "commands": [":split"]
+    },
+    {
+      "before": ["<C-h>"],
       "commands": ["workbench.action.focusLeftGroup"]
     },
     {
-      "before": ["leader", "j"],
+      "before": ["<C-j>"],
       "commands": ["workbench.action.focusBelowGroup"]
     },
     {
-      "before": ["leader", "k"],
+      "before": ["<C-k>"],
       "commands": ["workbench.action.focusAboveGroup"]
     },
-
     {
-      "before": ["leader", "l"],
+      "before": ["<C-l>"],
       "commands": ["workbench.action.focusRightGroup"]
     },
-    // NICE TO HAVE
-    { "before": ["leader", "w"], "commands": [":w!"] },
-    { "before": ["leader", "q"], "commands": [":q!"] },
-    { "before": ["leader", "x"], "commands": [":x!"] },
     {
       "before": ["[", "d"],
       "commands": ["editor.action.marker.prev"]
@@ -91,34 +87,43 @@
       "before": ["<leader>", "c", "a"],
       "commands": ["editor.action.quickFix"]
     },
-    { "before": ["leader", "p"], "commands": ["workbench.action.quickOpen"] },
-    { "before": ["leader", "f"], "commands": ["editor.action.formatDocument"] },
     {
-      "before": ["g", "h"],
+      "before": ["leader", "s", "g"],
+      "commands": ["workbench.action.findInFiles"]
+    },
+    {
+      "before": ["leader", "f"],
+      "commands": ["editor.action.formatDocument"]
+    },
+    {
+      "before": ["K"],
       "commands": ["editor.action.showDefinitionPreviewHover"]
     }
   ],
   "vim.visualModeKeyBindings": [
-    // Stay in visual mode while indenting
-    { "before": ["<"], "commands": ["editor.action.outdentLines"] },
-    { "before": [">"], "commands": ["editor.action.indentLines"] },
-    // Move selected lines while staying in visual mode
-    { "before": ["J"], "commands": ["editor.action.moveLinesDownAction"] },
-    { "before": ["K"], "commands": ["editor.action.moveLinesUpAction"] },
-    // toggle comment selection
-    { "before": ["leader", "c"], "commands": ["editor.action.commentLine"] }
+    {
+      "before": ["<"],
+      "commands": ["editor.action.outdentLines"]
+    },
+    {
+      "before": [">"],
+      "commands": ["editor.action.indentLines"]
+    },
+    {
+      "before": ["J"],
+      "commands": ["editor.action.moveLinesDownAction"]
+    },
+    {
+      "before": ["K"],
+      "commands": ["editor.action.moveLinesUpAction"]
+    },
+    {
+      "before": ["leader", "c"],
+      "commands": ["editor.action.commentLine"]
+    }
   ],
-  // end melkey settings
-
   "files.associations": {
     ".env*": "dotenv"
-  },
-  "dotenv.enableAutocloaking": false,
-  "github.copilot.enable": {
-    "*": true,
-    "plaintext": false,
-    "markdown": false,
-    "scminput": false
   },
   "typescript.updateImportsOnFileMove.enabled": "always",
   "[jsonc]": {
@@ -132,19 +137,10 @@
     "<C-x>": false,
     "<C-a>": false
   },
+  "vim.useSystemClipboard": true,
   "workbench.sideBar.location": "right",
   "remote.autoForwardPortsSource": "hybrid",
-  "sqltools.connections": [
-    {
-      "mysqlOptions": {
-        "authProtocol": "default",
-        "enableSsl": "Disabled"
-      },
-      "previewLimit": 50,
-      "server": "localhost",
-      "driver": "MySQL",
-      "connectString": "mysql://root:idQLPbTUpDKovYfSqpEYJHJRwqftKjPr@viaduct.proxy.rlwy.net:58096/railway",
-      "name": "liftinglogicDB"
-    }
-  ]
+  "editor.renderLineHighlight": "none",
+  "editor.cursorBlinking": "solid"
 }
+
