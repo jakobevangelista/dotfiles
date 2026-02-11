@@ -7,10 +7,7 @@ in {
     homeDirectory = homeDir;
     stateVersion = "25.05";
 
-    packages = with pkgs;
-      [
-        # Keep minimal for now - Homebrew is still active
-      ];
+    packages = with pkgs; [ neovim ];
 
     sessionPath = [
       "${homeDir}/bin"
@@ -200,11 +197,6 @@ in {
 
         # OpenCode
         export PATH="$HOME/.opencode/bin:$PATH"
-
-        # Nix daemon
-        if [ -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
-          . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-        fi
 
         # Envman
         [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"

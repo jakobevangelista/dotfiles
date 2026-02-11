@@ -1,84 +1,84 @@
 # Jakob's Dotfiles
 
-Personal configuration managed with Nix Home Manager (Phase 1).
+Personal macOS configuration managed with [nix-darwin](https://github.com/LnL7/nix-darwin) and [Home Manager](https://github.com/nix-community/home-manager).
 
-## What's This?
+## What's Managed
 
-This repo contains my dotfiles, now with Nix for reproducibility. Currently in **Phase 1**: Home Manager only, Homebrew still active.
+**System (nix-darwin / `darwin.nix`):**
+- Homebrew formulae, casks, and taps (declarative — anything not listed gets removed)
+- macOS system settings (optional, commented out by default)
+
+**User (Home Manager / `home.nix`):**
+- Zsh (plugins, aliases, completions, history)
+- Neovim
+- Starship prompt
+- Direnv + nix-direnv
+- Git
+- Tmux config
+- Ghostty config
 
 ## Setup
 
-### First Time Installation
+### Prerequisites
 
-**Prerequisites**: Nix should already be installed. If not:
+Install Nix via the [Determinate installer](https://github.com/DeterminateSystems/nix-installer):
+
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate
 ```
 
-### Apply Home Manager Configuration
+### Clone and Bootstrap
 
 ```bash
+git clone https://github.com/jakobevangelista/dotfiles ~/dotfiles
 cd ~/dotfiles
-nix run home-manager/master -- switch --flake .#jakobevangelista
+nix run nix-darwin/master#darwin-rebuild -- switch --flake .
 ```
 
-### Secrets Setup
+The bootstrap command installs nix-darwin and applies the full configuration (system + user). This only needs to be run once.
 
-API keys are stored in `~/.env` (not tracked in git). This file is sourced by `.zshrc`.
+### Secrets
 
-## Updating Configuration
+API keys are stored in `~/.env` (not tracked in git). This file is sourced automatically by zsh on startup.
 
-After making changes to `home.nix` or `flake.nix`:
+## Updating
+
+After editing any `.nix` file:
+
 ```bash
-home-manager switch --flake ~/dotfiles#jakobevangelista
+darwin-rebuild switch --flake ~/dotfiles
+```
+
+This rebuilds everything: system packages, Homebrew, shell config, and dotfile symlinks.
+
+### Adding a Homebrew package
+
+Add it to `darwin.nix` under `brews` (formulae) or `casks` (GUI apps), then rebuild:
+
+```bash
+# Edit darwin.nix, then:
+darwin-rebuild switch --flake ~/dotfiles
+```
+
+**Note:** `cleanup = "zap"` is enabled. If you `brew install` something ad-hoc without adding it to `darwin.nix`, it will be removed on the next rebuild.
+
+## Rollback
+
+```bash
+# List previous generations
+darwin-rebuild --list-generations
+
+# Roll back to a specific generation
+darwin-rebuild switch --switch-generation <number>
 ```
 
 ## Structure
 
-- `flake.nix` - Nix flake entry point
-- `home.nix` - Home Manager configuration
-- `.config/` - Application configurations (nvim, tmux, ghostty)
-- `.zshrc` - Shell configuration (using oh-my-zsh)
-- `.env` - Secrets (not in git)
-
-## Rollback
-
-If something breaks:
-
-**Rollback to previous Home Manager generation:**
-```bash
-home-manager generations  # List previous generations
-home-manager switch --switch-generation <number>
 ```
-
-**Or restore your old setup:**
-```bash
-cp ~/.zshrc.backup ~/.zshrc
-source ~/.zshrc
+flake.nix    - Nix flake entry point (inputs + wiring)
+darwin.nix   - nix-darwin config (Homebrew, system settings)
+home.nix     - Home Manager config (zsh, aliases, plugins, packages, paths)
+.config/     - App configs (nvim, tmux, ghostty)
+scripts/     - Utility scripts
+.env         - Secrets (not in git)
 ```
-
-## Old Setup (pre-Nix)
-
-### Requirements
-- git
-- build neovim from source
-- gnu stow
-- ripgrep
-- tmux
-
-### Download
-- download all the zsh plugins
-- download and install tpm first
-- <prefix>+I (prefix + capital i) to install tmux stuff within tmux
-- install nerdfont for tmux
-
-```zsh
-git clone https://github.com/jakobevangelista/dotfiles.git
-cd dotfiles
-stow .
-```
-
-## Phase 2 (Coming Soon)
-
-- Add nix-darwin for system configuration
-- Manage Homebrew declaratively via Nix
