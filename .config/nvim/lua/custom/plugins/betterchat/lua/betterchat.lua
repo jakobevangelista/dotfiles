@@ -257,11 +257,11 @@ end
 --   --   print 'HAPPY'
 --   -- end
 -- end
---
+
 -- local function anthropic_help()
 --   M.invoke_llm_and_stream_into_editor({
 --     url = 'https://api.anthropic.com/v1/messages',
---     model = 'claude-3-7-sonnet-20250219',
+--     model = 'claude-sonnet-4-20250514',
 --     api_key_name = 'ANTHROPIC_API_KEY',
 --     system_prompt = 'you are a helpful assistant. these are my notes so far',
 --     replace = false,

@@ -97,21 +97,22 @@ source $ZSH/oh-my-zsh.sh
 # For a full list of active aliases, run `alias`.
 #
 # Example aliases
-# alias zshconfig="mate ~/.zshrc"
+alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 alias vim="nvim"
+alias nviml="NVIM_APPNAME=lazyvim nvim"
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
 # pnpm
-export PNPM_HOME="/Users/jakob/Library/pnpm"
+# pnpm en# pnpm
+export PNPM_HOME="$HOME/.pnpm"
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
-# pnpm end
 
 # The next line updates PATH for the Google Cloud SDK.
 if [ -f '/Users/jakob/Downloads/google-cloud-sdk/path.zsh.inc' ]; then . '/Users/jakob/Downloads/google-cloud-sdk/path.zsh.inc'; fi
@@ -120,4 +121,27 @@ if [ -f '/Users/jakob/Downloads/google-cloud-sdk/path.zsh.inc' ]; then . '/Users
 if [ -f '/Users/jakob/Downloads/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/jakob/Downloads/google-cloud-sdk/completion.zsh.inc'; fi
 
 export PATH=$PATH:$(go env GOPATH)/bin
-export NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem"
+# export NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem"
+
+# bun completions
+[ -s "/Users/jakobevangelista/.bun/_bun" ] && source "/Users/jakobevangelista/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
+export OPENAI_API_KEY=REDACTED
+
+export ANTHROPIC_API_KEY=REDACTED
+
+export GROQ_API_KEY=REDACTED
+
+alias mkproj="~/make_video_project.sh"
+
+. /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+
+direnvPath=$(which direnv)
+eval "$(${direnvPath} hook zsh)"
+
+# Generated for envman. Do not edit.
+[ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"

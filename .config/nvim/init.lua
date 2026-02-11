@@ -148,8 +148,7 @@ vim.opt.splitbelow = true
 -- Sets how neovim will display certain whitespace characters in the editor.
 --  See `:help 'list'`
 --  and `:help 'listchars'`
-vim.opt.list = true
-vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
+vim.opt.list = false
 
 -- Preview substitutions live, as you type!
 vim.opt.inccommand = 'split'
@@ -159,6 +158,12 @@ vim.opt.inccommand = 'split'
 
 -- Minimal number of screen lines to keep above and below the cursor.
 vim.opt.scrolloff = 8
+
+-- Set tab and indentation settings (2 spaces like LazyVim)
+vim.opt.expandtab = true -- Use spaces instead of tabs
+vim.opt.shiftwidth = 2 -- Size of an indent
+vim.opt.tabstop = 2 -- Number of spaces tabs count for
+vim.opt.softtabstop = 2 -- Number of spaces that a <Tab> counts for
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
@@ -211,6 +216,19 @@ vim.keymap.set('x', '<leader>p', [["_dP]])
 vim.keymap.set({ 'n', 'v' }, '<leader>y', [["+y]])
 vim.keymap.set({ 'n', 'v' }, '<leader>d', [["_d]])
 
+-- Copy file paths to clipboard
+vim.keymap.set('n', '<leader>cp', function()
+  local path = vim.fn.expand '%:p'
+  vim.fn.setreg('+', path)
+  print('Copied absolute path: ' .. path)
+end, { desc = '[C]opy absolute file [p]ath' })
+
+vim.keymap.set('n', '<leader>cr', function()
+  local path = vim.fn.expand '%'
+  vim.fn.setreg('+', path)
+  print('Copied relative path: ' .. path)
+end, { desc = '[C]opy [r]elative file path' })
+
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
@@ -252,28 +270,17 @@ require('lazy').setup({
   -- NOTE: The import below can automatically add plugins, configuration, etc from `lua/custom/plugins/*.lua`
   -- { import = 'custom.plugins' },
 
-  -- Nightfox theme configuration
+  -- Kanagawa theme configuration
   {
-    'EdenEast/nightfox.nvim',
+    'rebelot/kanagawa.nvim',
     priority = 1000,
     config = function()
-      require('nightfox').setup {
-        options = {
-          -- Compiled file's destination location
-          compile_path = vim.fn.stdpath 'cache' .. '/nightfox',
-          compile_file_suffix = '_compiled', -- Compiled file suffix
-          transparent = false, -- Disable setting background
-          terminal_colors = true, -- Set terminal colors (vim.g.terminal_color_*)
-          dim_inactive = false, -- Non focused panes set to alternative background
-          styles = {
-            comments = 'italic',
-            keywords = 'bold',
-            types = 'italic,bold',
-          },
-        },
+      require('kanagawa').setup {
+        transparent = false,
+        dimInactive = false,
       }
       -- Set the colorscheme
-      vim.cmd 'colorscheme carbonfox'
+      vim.cmd 'colorscheme kanagawa'
     end,
   },
 
@@ -914,11 +921,40 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
+  
+  -- Animated indent guides like LazyVim
+  {
+    'echasnovski/mini.indentscope',
+    opts = {
+      symbol = '│',
+      options = { try_as_border = true },
+    },
+    init = function()
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = {
+          'help',
+          'alpha',
+          'dashboard',
+          'neo-tree',
+          'Trouble',
+          'trouble',
+          'lazy',
+          'mason',
+          'notify',
+          'toggleterm',
+          'lazyterm',
+        },
+        callback = function()
+          vim.b.miniindentscope_disable = true
+        end,
+      })
+    end,
+  },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     opts = {
-      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'typescript', 'javascript', 'markdown_inline' },
+      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'typescript', 'javascript', 'markdown_inline', 'tsx' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
