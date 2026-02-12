@@ -185,9 +185,16 @@ in {
           echo master
         }
 
-        # NVM
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+        # NVM (lazy-loaded — only sources nvm.sh on first use of nvm/node/npm/npx)
+        function _lazy_load_nvm() {
+          unset -f nvm node npm npx
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+        }
+        function nvm() { _lazy_load_nvm; nvm "$@"; }
+        function node() { _lazy_load_nvm; node "$@"; }
+        function npm() { _lazy_load_nvm; npm "$@"; }
+        function npx() { _lazy_load_nvm; npx "$@"; }
 
         # Go
         export PATH="$PATH:$(go env GOPATH)/bin"
