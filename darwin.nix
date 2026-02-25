@@ -43,7 +43,7 @@
       "tmux"
     ];
 
-    casks = [ "ghostty" "notion" "orbstack" "syncthing" "zoom" ];
+    casks = [ "ghostty" "ngrok" "notion" "orbstack" "syncthing" "zoom" ];
   };
 
   # macOS system defaults (uncomment to customize)
