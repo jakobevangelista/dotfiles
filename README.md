@@ -27,15 +27,36 @@ Install Nix via the [Determinate installer](https://github.com/DeterminateSystem
 curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate
 ```
 
+### SSH Key
+
+Generate a key and add it to [GitHub](https://github.com/settings/keys):
+
+```bash
+ssh-keygen -t ed25519 -C "jakobevangelista@gmail.com"
+pbcopy < ~/.ssh/id_ed25519.pub
+```
+
+Until the first rebuild, `~/.ssh/config` doesn't exist yet. Create it manually:
+
+```bash
+mkdir -p ~/.ssh && cat <<'EOF' > ~/.ssh/config
+Host github.com
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/id_ed25519
+EOF
+chmod 600 ~/.ssh/config
+```
+
 ### Clone and Bootstrap
 
 ```bash
-git clone https://github.com/jakobevangelista/dotfiles ~/dotfiles
+git clone git@github.com:jakobevangelista/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 nix run nix-darwin/master#darwin-rebuild -- switch --flake .
 ```
 
-The bootstrap command installs nix-darwin and applies the full configuration (system + user). This only needs to be run once.
+The bootstrap command installs nix-darwin and applies the full configuration (system + user). This only needs to be run once. After rebuild, git is configured to rewrite all HTTPS GitHub URLs to SSH automatically.
 
 ### Secrets
 

@@ -68,9 +68,14 @@ in {
 
     git = {
       enable = true;
-      # Uncomment and fill in your details:
-      # userName = "Jakob Evangelista";
-      # userEmail = "your.email@example.com";
+      userName = "jakobevangelista";
+      userEmail = "jakobevangelista@gmail.com";
+      extraConfig = {
+        init.defaultBranch = "master";
+        pull.rebase = true;
+        # Rewrite HTTPS GitHub URLs to SSH so you never get password prompts
+        url."git@github.com:".insteadOf = "https://github.com/";
+      };
     };
 
     # Starship prompt — enableZshIntegration adds eval "$(starship init zsh)" automatically
