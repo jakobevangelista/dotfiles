@@ -3,3 +3,4 @@ font-family = "GeistMono Nerd Font"
 theme = elementary
 macos-icon = xray
 keybind = shift+enter=text:\n
+shell-integration-features = no-cursor,sudo,ssh-env
