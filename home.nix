@@ -78,6 +78,34 @@ in {
       };
     };
 
+    # fzf — fuzzy finder with shell integration
+    # Ctrl+R = fuzzy history, Ctrl+T = fuzzy file finder, Alt+C = fuzzy cd
+    fzf = {
+      enable = true;
+      enableZshIntegration = true;
+    };
+
+    # zoxide — smarter cd that learns your most-used directories
+    # Use: z <partial-name> to jump to frequently visited dirs
+    zoxide = {
+      enable = true;
+      enableZshIntegration = true;
+    };
+
+    # eza — modern ls replacement with git integration and colors
+    eza = {
+      enable = true;
+      enableZshIntegration = true; # aliases ls, ll, la, lt, lla
+      git = true;
+      icons = "auto";
+    };
+
+    # bat — modern cat with syntax highlighting
+    bat = {
+      enable = true;
+      config.theme = "base16";
+    };
+
     # Starship prompt — enableZshIntegration adds eval "$(starship init zsh)" automatically
     starship = {
       enable = true;
@@ -124,8 +152,10 @@ in {
         nviml = "NVIM_APPNAME=lazyvim nvim";
         mkproj = "~/make_video_project.sh";
         backupSdCard = "~/dotfiles/scripts/backup_sd_videos.sh";
-        ls = "ls -G";
         md = "mkdir -p";
+        "..." = "cd ../..";
+        "...." = "cd ../../..";
+        "....." = "cd ../../../..";
 
         # Git aliases
         gst = "git status";
