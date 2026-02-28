@@ -14,6 +14,9 @@ in {
       "${homeDir}/.cargo/bin"
       "${homeDir}/.pnpm"
       "${homeDir}/.bun/bin"
+      "${homeDir}/go/bin"
+      "${homeDir}/.opencode/bin"
+      "${homeDir}/.krew/bin"
       "/opt/homebrew/bin"
     ];
 
@@ -231,23 +234,14 @@ in {
         function npm() { _lazy_load_nvm; npm "$@"; }
         function npx() { _lazy_load_nvm; npx "$@"; }
 
-        # Go
-        export PATH="$PATH:$(go env GOPATH)/bin"
-
         # Bun completions
         [ -s "${homeDir}/.bun/_bun" ] && source "${homeDir}/.bun/_bun"
-
-        # OpenCode
-        export PATH="$HOME/.opencode/bin:$PATH"
 
         # Envman
         [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
         # Secrets
         [ -f "$HOME/.env" ] && source "$HOME/.env"
-
-        # Krew
-        export PATH="''${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
       '';
     };
   };
