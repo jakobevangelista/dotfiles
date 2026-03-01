@@ -18,6 +18,9 @@ in {
       "${homeDir}/.opencode/bin"
       "${homeDir}/.krew/bin"
       "/opt/homebrew/bin"
+      # Nix profile paths before /usr/bin — ensures nix-installed tools (git, etc.)
+      # run directly instead of through Apple's xcrun shim, which breaks color output
+      "/etc/profiles/per-user/jakobevangelista/bin"
     ];
 
     sessionVariables = {
