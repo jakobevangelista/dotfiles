@@ -45,6 +45,7 @@ in {
       ".config/nvim".source = ./.config/nvim;
       ".config/tmux".source = ./.config/tmux;
       ".config/ghostty".source = ./.config/ghostty;
+      ".config/starship.toml".source = ./.config/starship.toml;
 
       # .zshrc is now managed by programs.zsh — no manual symlink
 

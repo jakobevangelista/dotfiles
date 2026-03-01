@@ -1,0 +1,224 @@
+# Starship prompt config — text symbols only (no emojis) for tmux compatibility
+
+# Single-line prompt
+[line_break]
+disabled = true
+
+[character]
+success_symbol = "[>](bold green)"
+error_symbol = "[>](bold red)"
+
+[directory]
+truncation_length = 3
+format = "[$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+format = "[$symbol$branch]($style) "
+symbol = ""
+
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+
+[cmd_duration]
+format = "[$duration]($style) "
+min_time = 2000
+
+# --- Active modules (text symbols, no emojis) ---
+
+[aws]
+format = '\[[$symbol($profile)(\($region\))]($style)\] '
+symbol = "aws "
+
+[bun]
+format = '\[[$symbol($version)]($style)\] '
+symbol = "bun "
+
+[docker_context]
+format = '\[[$symbol$context]($style)\] '
+symbol = "docker "
+
+[golang]
+format = '\[[$symbol($version)]($style)\] '
+symbol = "go "
+
+[kubernetes]
+format = '\[[$symbol$context( \($namespace\))]($style)\] '
+symbol = "k8s "
+disabled = false
+detect_env_vars = []
+detect_extensions = []
+detect_files = ["Chart.yaml", "kustomization.yaml", "kustomization.yml", "helmfile.yaml", "helmfile.yml"]
+detect_folders = ["k8s", "kubernetes", "helm", "charts"]
+
+[nix_shell]
+format = '\[[$symbol$state( \($name\))]($style)\] '
+symbol = "nix "
+
+[nodejs]
+format = '\[[$symbol($version)]($style)\] '
+symbol = "node "
+
+[package]
+format = '\[[$symbol$version]($style)\] '
+symbol = "pkg "
+
+[python]
+format = '\[[$symbol($version)(\($virtualenv\))]($style)\] '
+symbol = "py "
+
+[rust]
+format = '\[[$symbol($version)]($style)\] '
+symbol = "rs "
+
+[terraform]
+format = '\[[$symbol$workspace]($style)\] '
+symbol = "tf "
+
+[c]
+format = '\[[$symbol($version)]($style)\] '
+symbol = "c "
+
+[lua]
+format = '\[[$symbol($version)]($style)\] '
+symbol = "lua "
+
+[buf]
+format = '\[[$symbol($version)]($style)\] '
+symbol = "buf "
+
+# --- Disabled modules (not in your stack, saves prompt render time) ---
+
+[cmake]
+disabled = true
+
+[cobol]
+disabled = true
+
+[conda]
+disabled = true
+
+[cpp]
+disabled = true
+
+[crystal]
+disabled = true
+
+[daml]
+disabled = true
+
+[dart]
+disabled = true
+
+[deno]
+disabled = true
+
+[dotnet]
+disabled = true
+
+[elixir]
+disabled = true
+
+[elm]
+disabled = true
+
+[erlang]
+disabled = true
+
+[fennel]
+disabled = true
+
+[fossil_branch]
+disabled = true
+
+[gcloud]
+disabled = true
+
+[gradle]
+disabled = true
+
+[guix_shell]
+disabled = true
+
+[haskell]
+disabled = true
+
+[haxe]
+disabled = true
+
+[helm]
+disabled = true
+
+[hg_branch]
+disabled = true
+
+[java]
+disabled = true
+
+[julia]
+disabled = true
+
+[kotlin]
+disabled = true
+
+[meson]
+disabled = true
+
+[nim]
+disabled = true
+
+[ocaml]
+disabled = true
+
+[opa]
+disabled = true
+
+[openstack]
+disabled = true
+
+[perl]
+disabled = true
+
+[php]
+disabled = true
+
+[pijul_channel]
+disabled = true
+
+[pixi]
+disabled = true
+
+[pulumi]
+disabled = true
+
+[purescript]
+disabled = true
+
+[raku]
+disabled = true
+
+[red]
+disabled = true
+
+[ruby]
+disabled = true
+
+[scala]
+disabled = true
+
+[solidity]
+disabled = true
+
+[spack]
+disabled = true
+
+[swift]
+disabled = true
+
+[vagrant]
+disabled = true
+
+[vlang]
+disabled = true
+
+[zig]
+disabled = true
