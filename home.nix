@@ -185,6 +185,7 @@ in {
         glog = "git log --oneline --decorate --graph";
         gsta = "git stash push";
         gstp = "git stash pop";
+        oc = "ANTHROPIC_API_KEY=dummy ANTHROPIC_BASE_URL=http://100.125.253.7:3456 opencode";
       };
 
       initExtra = ''
