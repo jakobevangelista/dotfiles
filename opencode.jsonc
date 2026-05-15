@@ -1,6 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "theme": "kanagawa",
   "permission": {
     "bash": "ask"
   },
@@ -13,11 +12,7 @@
     "linear": {
       "type": "remote",
       "url": "https://mcp.linear.app/mcp",
-      "enabled": true,
-      "oauth": false,
-      "headers": {
-        "Authorization": "Bearer {env:LINEAR_API_KEY}"
-      }
+      "enabled": true
     }
   }
 }

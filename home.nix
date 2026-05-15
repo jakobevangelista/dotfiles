@@ -59,6 +59,7 @@ in {
 
       # OpenCode config
       ".config/opencode/opencode.jsonc".source = ./opencode.jsonc;
+      ".config/opencode/tui.json".source = ./tui.json;
 
       # Scripts
       "bin/tmux-sessionizer" = {
