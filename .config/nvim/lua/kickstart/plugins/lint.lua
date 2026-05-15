@@ -6,12 +6,15 @@ return {
     config = function()
       local lint = require 'lint'
       lint.linters_by_ft = {
-        markdown = { 'markdownlint' },
         javascript = { 'eslint_d' },
         typescript = { 'eslint_d' },
         javascriptreact = { 'eslint_d' },
         typescriptreact = { 'eslint_d' },
       }
+
+      if vim.fn.executable 'markdownlint' == 1 then
+        lint.linters_by_ft.markdown = { 'markdownlint' }
+      end
 
       -- To allow other plugins to add linters to require('lint').linters_by_ft,
       -- instead set linters_by_ft like this:
@@ -44,25 +47,6 @@ return {
       -- lint.linters_by_ft['ruby'] = nil
       -- lint.linters_by_ft['terraform'] = nil
       -- lint.linters_by_ft['text'] = nil
-      -- Use eslint_d if available, fallback to eslint
-      local eslint_d_opts = {
-        cmd = "eslint_d",
-        args = {
-          "--format",
-          "json",
-          "--stdin",
-          "--stdin-filename",
-          function()
-            return vim.api.nvim_buf_get_name(0)
-          end,
-        },
-        stdin = true,
-        ignore_exitcode = true,
-        parser = require('lint.parser').from_json,
-      }
-
-      lint.linters.eslint_d = eslint_d_opts
-
       -- Create autocommand which carries out the actual linting
       -- on the specified events.
       local lint_augroup = vim.api.nvim_create_augroup('lint', { clear = true })

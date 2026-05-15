@@ -38,9 +38,11 @@ return {
       -- Make sure to set this up properly if you have lazy=true
       'MeanderingProgrammer/render-markdown.nvim',
       opts = {
-        file_types = { 'markdown', 'Avante' },
+        -- Keep markdown rendering scoped to Avante buffers so regular Markdown
+        -- files do not pull in the plugin's treesitter pipeline.
+        file_types = { 'Avante' },
       },
-      ft = { 'markdown', 'Avante' },
+      ft = { 'Avante' },
     },
   },
 }
