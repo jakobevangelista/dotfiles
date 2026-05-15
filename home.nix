@@ -7,20 +7,25 @@ in {
     homeDirectory = homeDir;
     stateVersion = "25.05";
 
-    packages = with pkgs; [ neovim ];
+    packages = with pkgs; [ neovim tree-sitter claude-code codex ];
 
     sessionPath = [
       "${homeDir}/bin"
+
+      # Prefer declaratively managed tools over mutable language-runtime shims.
+      "/etc/profiles/per-user/jakobevangelista/bin"
+      "/opt/homebrew/bin"
+      "/opt/homebrew/sbin"
+
       "${homeDir}/.cargo/bin"
       "${homeDir}/.pnpm"
       "${homeDir}/.bun/bin"
       "${homeDir}/go/bin"
       "${homeDir}/.opencode/bin"
       "${homeDir}/.krew/bin"
-      "/opt/homebrew/bin"
-      # Nix profile paths before /usr/bin — ensures nix-installed tools (git, etc.)
-      # run directly instead of through Apple's xcrun shim, which breaks color output
-      "/etc/profiles/per-user/jakobevangelista/bin"
+
+      # Keep vite-plus late so stale versioned Node shims do not shadow Nix/Homebrew.
+      "${homeDir}/.vite-plus/bin"
     ];
 
     sessionVariables = {
@@ -58,6 +63,23 @@ in {
       # Scripts
       "bin/tmux-sessionizer" = {
         source = ./.config/tmux/scripts/tmux-sessionizer;
+        executable = true;
+      };
+
+      "bin/opencode" = {
+        text = ''
+          #!/usr/bin/env sh
+
+          case "$PWD" in
+            "$HOME/personal"|"$HOME/personal"/*)
+              if [ -z "$OPENCODE_PERMISSION" ]; then
+                export OPENCODE_PERMISSION='{"bash":"allow","edit":"allow","external_directory":"allow"}'
+              fi
+              ;;
+          esac
+
+          exec "$HOME/.opencode/bin/opencode" "$@"
+        '';
         executable = true;
       };
     };
@@ -157,8 +179,11 @@ in {
       shellAliases = {
         vim = "nvim";
         nviml = "NVIM_APPNAME=lazyvim nvim";
-        mkproj = "~/make_video_project.sh";
+        mkproj = "~/dotfiles/scripts/make_video_project.sh";
         backupSdCard = "~/dotfiles/scripts/backup_sd_videos.sh";
+        ingestFootage = "~/dotfiles/scripts/ingest_footage.sh";
+        backupProject = "~/dotfiles/scripts/backup_project.sh";
+        restoreProjectMedia = "~/dotfiles/scripts/restore_project_media.sh";
         md = "mkdir -p";
         "..." = "cd ../..";
         "...." = "cd ../../..";
