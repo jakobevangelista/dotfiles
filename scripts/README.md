@@ -14,7 +14,7 @@ A robust backup script for copying MP4 video files from Sony camera SD cards or 
 - **Smart Duplicate Detection**: Skips files that already exist at the destination (compares by size)
 - **Recursive Search**: Can search subdirectories when given a custom path
 - **Dry Run Mode**: Preview what would be copied without making any changes
-- **Progress Tracking**: Shows real-time copy progress and elapsed time for each file
+- **Progress Tracking**: Shows real-time bytes copied, speed, ETA, and elapsed time for each file
 - **Interrupt Safety**: Safely handles Ctrl+C by cleaning up partial temp files
 - **Conflict Resolution**: Appends `_1`, `_2`, etc. if different files have the same name
 
@@ -201,8 +201,8 @@ This ensures:
 **Problem**: Files copied but with wrong dates
 - **Solution**: The XML sidecar files may be missing. The script falls back to file modification dates. Check if `*M01.XML` files exist alongside your MP4 files
 
-**Problem**: Script fails with old rsync
-- **Solution**: The script uses `rsync --progress` which works with macOS's built-in rsync (v2.6.9)
+**Problem**: Progress output shows very high speed early in a copy
+- **Solution**: macOS/SMB buffering can make early file-size based progress briefly optimistic. The final line and `Done in` time are the best end-to-end numbers.
 
 ### Alias Setup
 
@@ -219,11 +219,78 @@ source ~/.zshrc
 ### Technical Details
 
 - **Language**: Zsh shell script
-- **Dependencies**: rsync (built-in on macOS), standard Unix utilities
+- **Dependencies**: dd (built-in on macOS), standard Unix utilities
 - **Exit Codes**:
   - `0` - Success
   - `1` - Validation or copy error
   - `130` - Interrupted (SIGINT/SIGTERM)
 - **File Detection**: Uses `find` with `-print0` for null-separated paths (handles spaces/special characters)
 - **Metadata Parsing**: Uses `grep` and `sed` to extract XML values
-- **Progress**: Uses rsync's `--progress` flag for per-file transfer status
+- **Progress**: Uses a custom progress loop around `dd` for per-file transfer status
+
+## Local Edit / NAS Archive Workflow
+
+Use this newer workflow for active edits:
+
+```bash
+mkproj
+ingestFootage /Volumes/Untitled ~/Documents/videos/2026-04-26_project_name
+backupProject ~/Documents/videos/2026-04-26_project_name
+restoreProjectMedia ~/Documents/videos/2026-04-26_project_name
+```
+
+### ingest_footage.sh
+
+Copies MP4/MOV media from an SD card, T7 folder, or any source folder into both:
+
+```text
+<project>/footage/YYYY/MM/DD/<camera>/
+/Volumes/plusEvMediaBackup/CameraBackup/YYYY/MM/DD/<camera>/
+```
+
+Files are renamed before editing/importing with this format:
+
+```text
+YYYY-MM-DD_HH-MM-SS_<original_name>
+```
+
+The script also writes `media-manifest.tsv` into the project root. That manifest maps each local footage file to its NAS archive path, so `restoreProjectMedia` can rebuild the local `footage/` folder later.
+
+Examples:
+
+```bash
+ingestFootage /Volumes/Untitled ~/Documents/videos/2026-04-26_first_short
+ingestFootage "/Volumes/T7 Shield/japan1" ~/Documents/videos/2026-04-26_first_short
+ingestFootage --camera a6100 /Volumes/Untitled ~/Documents/videos/2026-04-26_first_short
+ingestFootage --dry-run /Volumes/Untitled ~/Documents/videos/2026-04-26_first_short
+```
+
+### backup_project.sh
+
+Backs up project files to:
+
+```text
+/Volumes/plusEvMediaBackup/ProjectBackups/<project-name>/
+```
+
+It excludes `footage/` to avoid duplicating raw media already archived in `CameraBackup`. It includes `media-manifest.tsv`, `project-files/`, `exports/`, `thumbnails/`, and other non-footage project files.
+
+Examples:
+
+```bash
+backupProject ~/Documents/videos/2026-04-26_first_short
+backupProject --dry-run ~/Documents/videos/2026-04-26_first_short
+```
+
+### restore_project_media.sh
+
+Restores archived media from NAS `CameraBackup` back into the local project `footage/` folder using `media-manifest.tsv`.
+
+Use it when reopening an old project after deleting local footage:
+
+```bash
+restoreProjectMedia ~/Documents/videos/2026-04-26_first_short
+restoreProjectMedia --dry-run ~/Documents/videos/2026-04-26_first_short
+```
+
+After restore, Premiere should see the expected local paths again, so relinking should be rare.

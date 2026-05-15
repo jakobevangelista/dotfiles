@@ -32,6 +32,7 @@ ERROR_COUNT=0
 TOTAL_BYTES_COPIED=0
 START_TIME=0
 CURRENT_TEMP_FILE=""
+CURRENT_COPY_PID=""
 declare -a DIRS_TO_CREATE
 
 # =============================================================================
@@ -39,6 +40,12 @@ declare -a DIRS_TO_CREATE
 # =============================================================================
 
 cleanup() {
+    if [[ -n "$CURRENT_COPY_PID" ]]; then
+        kill "$CURRENT_COPY_PID" 2>/dev/null
+        wait "$CURRENT_COPY_PID" 2>/dev/null
+        CURRENT_COPY_PID=""
+    fi
+
     if [[ -n "$CURRENT_TEMP_FILE" && -f "$CURRENT_TEMP_FILE" ]]; then
         echo ""
         echo "Interrupted! Cleaning up partial file..."
@@ -119,6 +126,93 @@ format_time() {
     else
         printf "%ds" $seconds
     fi
+}
+
+# Format seconds as HH:MM:SS for progress/ETA output.
+format_clock_time() {
+    local seconds=$1
+    (( seconds < 0 )) && seconds=0
+    printf "%02d:%02d:%02d" $((seconds / 3600)) $((seconds % 3600 / 60)) $((seconds % 60))
+}
+
+print_copy_progress() {
+    local temp_file="$1"
+    local total_bytes=$2
+    local copy_start=$3
+    local finish_line="$4"
+    local copied_bytes=0
+
+    if [[ -f "$temp_file" ]]; then
+        copied_bytes=$(stat -f "%z" "$temp_file" 2>/dev/null)
+        [[ -z "$copied_bytes" ]] && copied_bytes=0
+    fi
+
+    (( copied_bytes > total_bytes )) && copied_bytes=$total_bytes
+
+    local elapsed=$((SECONDS - copy_start))
+    local speed_elapsed=$elapsed
+    (( speed_elapsed <= 0 )) && speed_elapsed=1
+
+    local percent=100
+    if (( total_bytes > 0 )); then
+        percent=$((copied_bytes * 100 / total_bytes))
+    fi
+
+    local speed_mbps=$((copied_bytes / speed_elapsed / 1000000.0))
+    local eta=0
+    if (( copied_bytes > 0 && copied_bytes < total_bytes )); then
+        eta=$(((total_bytes - copied_bytes) * speed_elapsed / copied_bytes))
+    fi
+
+    local eta_fmt=$(format_clock_time $eta)
+    local elapsed_fmt=$(format_clock_time $elapsed)
+
+    printf "\r%14d %3d%% %8.2fMB/s ETA %s elapsed %s" \
+        $copied_bytes $percent $speed_mbps $eta_fmt $elapsed_fmt
+
+    if [[ "$finish_line" == "true" ]]; then
+        printf "\n"
+    fi
+}
+
+copy_file_with_progress() {
+    local src_file="$1"
+    local temp_file="$2"
+    local total_bytes=$3
+    local filename="${src_file:t}"
+    local copy_start=$SECONDS
+
+    echo "$filename"
+
+    dd if="$src_file" of="$temp_file" bs=16m status=none &
+    local copy_pid=$!
+    CURRENT_COPY_PID="$copy_pid"
+
+    while kill -0 "$copy_pid" 2>/dev/null; do
+        print_copy_progress "$temp_file" $total_bytes $copy_start false
+        sleep 1
+    done
+
+    wait "$copy_pid"
+    local copy_status=$?
+    CURRENT_COPY_PID=""
+
+    print_copy_progress "$temp_file" $total_bytes $copy_start true
+
+    if (( copy_status != 0 )); then
+        return 1
+    fi
+
+    local copied_size=$(stat -f "%z" "$temp_file" 2>/dev/null)
+    if [[ "$copied_size" != "$total_bytes" ]]; then
+        log_error "Copied size mismatch for $filename: expected $total_bytes bytes, got ${copied_size:-0} bytes"
+        return 1
+    fi
+
+    # dd copies file contents only; preserve the source modification time explicitly.
+    touch -r "$src_file" "$temp_file" 2>/dev/null || true
+
+    return 0
 }
 
 # Extract creation date from XML sidecar file
@@ -367,14 +461,14 @@ process_files() {
                 fi
             fi
             
-            # Copy file with rsync (showing progress)
+            # Copy file with dd and custom progress.
             # Use temp file to avoid partial files if cancelled
             local temp_file="${dest_file}.tmp"
             CURRENT_TEMP_FILE="$temp_file"
             
             log_info "      Copying ($filesize_human)..."
             local copy_start=$SECONDS
-            if rsync -ah --progress "$src_file" "$temp_file"; then
+            if copy_file_with_progress "$src_file" "$temp_file" $filesize; then
                 # Rename temp file to final destination
                 if mv "$temp_file" "$dest_file"; then
                     CURRENT_TEMP_FILE=""
