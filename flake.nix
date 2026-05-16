@@ -14,7 +14,9 @@
   };
 
   outputs = { nixpkgs, nix-darwin, home-manager, ... }:
-    let username = "jakobevangelista";
+    let
+      darwinUsername = "jakobevangelista";
+      odinUsername = "jakob";
     in {
       darwinConfigurations."jakobs-goated-inngest-macbook" =
         nix-darwin.lib.darwinSystem {
@@ -25,7 +27,7 @@
             {
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
-              home-manager.users.${username} = import ./home.nix;
+              home-manager.users.${darwinUsername} = import ./home.nix;
             }
           ];
         };
@@ -38,7 +40,7 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.users.${username} = import ./homes/odin.nix;
+            home-manager.users.${odinUsername} = import ./homes/odin.nix;
           }
         ];
       };

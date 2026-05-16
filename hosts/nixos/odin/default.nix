@@ -1,6 +1,6 @@
 { pkgs, ... }:
 
-let username = "jakobevangelista";
+let username = "jakob";
 in {
   imports = [ ./hardware-configuration.nix ];
 

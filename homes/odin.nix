@@ -1,7 +1,7 @@
 { pkgs, ... }:
 
 let
-  username = "jakobevangelista";
+  username = "jakob";
   homeDir = "/home/${username}";
 in {
   imports = [ ../modules/home/shared-dotfiles.nix ];
