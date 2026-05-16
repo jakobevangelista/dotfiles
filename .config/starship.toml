@@ -1,7 +1,7 @@
 # Text symbols only for tmux compatibility.
 "$schema" = "https://starship.rs/config-schema.json"
 
-format = "$directory$git_branch$git_commit$git_state$git_status$kubernetes$aws$docker_context$package$bun$nodejs$golang$python$rust$c$lua$buf$terraform$nix_shell$cmd_duration$line_break$jobs$character"
+format = "$directory${custom.jj}$git_branch$git_commit$git_state$git_status$kubernetes$aws$docker_context$package$bun$nodejs$golang$python$rust$c$lua$buf$terraform$nix_shell$cmd_duration$line_break$jobs$character"
 
 [character]
 success_symbol = "[>](bold green)"
@@ -15,9 +15,22 @@ read_only = " ro"
 [git_branch]
 format = "[$symbol$branch]($style) "
 symbol = ""
+only_attached = true
+
+[git_commit]
+disabled = true
 
 [git_status]
 format = '([$all_status$ahead_behind]($style) )'
+
+[custom.jj]
+command = '''
+jj log --ignore-working-copy --no-graph --color never -r @ -T 'separate(" ", if(local_bookmarks, local_bookmarks.map(|b| b.name()).join(","), change_id.shortest(8)), description.first_line().substr(0, 24))'
+'''
+when = "jj root >/dev/null 2>&1"
+format = '[$symbol$output]($style) '
+symbol = "jj "
+style = "bold purple"
 
 [aws]
 format = '\[[$symbol($profile)(\($region\))]($style)\] '
