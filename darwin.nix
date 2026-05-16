@@ -1,13 +1,7 @@
-{ pkgs, ... }: {
+{ ... }: {
   # Nix daemon is managed by Determinate — don't let nix-darwin conflict
   nix.enable = false;
   nixpkgs.config.allowUnfree = true;
-
-  # System packages installed via Nix (not Homebrew)
-  environment.systemPackages = with pkgs;
-    [
-      # Add system-level nix packages here if needed
-    ];
 
   # Homebrew — managed declaratively by nix-darwin
   # Anything not listed here gets removed on rebuild (cleanup = "zap")
@@ -25,9 +19,13 @@
       "act"
       "aws-vault"
       "awscli"
+      "bat"
       "cmake"
       "curl"
+      "direnv"
+      "eza"
       "fzf"
+      "git"
       "gh"
       "go"
       "golangci-lint"
@@ -36,16 +34,29 @@
       "derailed/k9s/k9s"
       "kind"
       "ninja"
+      "neovim"
       "parallel"
       "pnpm"
       "protobuf"
       "ripgrep"
+      "starship"
       "stripe/stripe-cli/stripe"
       "terragrunt"
       "tmux"
+      "tree-sitter-cli"
+      "zoxide"
     ];
 
-    casks = [ "ghostty" "ngrok" "notion" "orbstack" "syncthing" "zoom" ];
+    casks = [
+      "claude-code"
+      "codex"
+      "ghostty"
+      "ngrok"
+      "notion"
+      "orbstack"
+      "syncthing"
+      "zoom"
+    ];
   };
 
   # macOS system defaults (uncomment to customize)

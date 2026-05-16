@@ -7,15 +7,13 @@ in {
     homeDirectory = homeDir;
     stateVersion = "25.05";
 
-    packages = with pkgs; [ neovim tree-sitter claude-code codex ];
-
     sessionPath = [
       "${homeDir}/bin"
 
-      # Prefer declaratively managed tools over mutable language-runtime shims.
-      "/etc/profiles/per-user/jakobevangelista/bin"
+      # Prefer Homebrew-owned CLI tools; keep the Nix profile available for HM helpers.
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
+      "/etc/profiles/per-user/jakobevangelista/bin"
 
       "${homeDir}/.cargo/bin"
       "${homeDir}/.pnpm"
@@ -53,13 +51,13 @@ in {
       ".config/nvim".source = ./.config/nvim;
       ".config/tmux".source = ./.config/tmux;
       ".config/ghostty".source = ./.config/ghostty;
+      ".config/bat/config".text = ''
+        --theme=base16
+      '';
+      ".config/direnv/lib/hm-nix-direnv.sh".source = "${pkgs.nix-direnv}/share/nix-direnv/direnvrc";
+      ".config/opencode/opencode.jsonc".source = ./.config/opencode/opencode.jsonc;
+      ".config/opencode/tui.json".source = ./.config/opencode/tui.json;
       ".config/starship.toml".source = ./.config/starship.toml;
-
-      # .zshrc is now managed by programs.zsh — no manual symlink
-
-      # OpenCode config
-      ".config/opencode/opencode.jsonc".source = ./opencode.jsonc;
-      ".config/opencode/tui.json".source = ./tui.json;
 
       # Scripts
       "bin/tmux-sessionizer" = {
@@ -89,15 +87,9 @@ in {
   programs = {
     home-manager.enable = true;
 
-    # Direnv — managed by HM, hooks into zsh automatically
-    direnv = {
-      enable = true;
-      enableZshIntegration = true;
-      nix-direnv.enable = true;
-    };
-
     git = {
       enable = true;
+      package = null;
       userName = "jakobevangelista";
       userEmail = "jakobevangelista@gmail.com";
       extraConfig = {
@@ -108,38 +100,13 @@ in {
       };
     };
 
-    # fzf — fuzzy finder with shell integration
-    # Ctrl+R = fuzzy history, Ctrl+T = fuzzy file finder, Alt+C = fuzzy cd
-    fzf = {
-      enable = true;
-      enableZshIntegration = true;
-    };
-
-    # zoxide — smarter cd that learns your most-used directories
-    # Use: z <partial-name> to jump to frequently visited dirs
-    zoxide = {
-      enable = true;
-      enableZshIntegration = true;
-    };
-
     # eza — modern ls replacement with git integration and colors
     eza = {
       enable = true;
+      package = null;
       enableZshIntegration = true; # aliases ls, ll, la, lt, lla
       git = true;
       icons = "auto";
-    };
-
-    # bat — modern cat with syntax highlighting
-    bat = {
-      enable = true;
-      config.theme = "base16";
-    };
-
-    # Starship prompt — enableZshIntegration adds eval "$(starship init zsh)" automatically
-    starship = {
-      enable = true;
-      enableZshIntegration = true;
     };
 
     # Zsh — managed by Home Manager, replaces oh-my-zsh
@@ -273,6 +240,22 @@ in {
 
         # Secrets
         [ -f "$HOME/.env" ] && source "$HOME/.env"
+
+        # Homebrew-managed shell integrations
+        if command -v direnv >/dev/null 2>&1; then
+          eval "$(direnv hook zsh)"
+        fi
+
+        [ -r /opt/homebrew/opt/fzf/shell/completion.zsh ] && source /opt/homebrew/opt/fzf/shell/completion.zsh
+        [ -r /opt/homebrew/opt/fzf/shell/key-bindings.zsh ] && source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
+
+        if command -v zoxide >/dev/null 2>&1; then
+          eval "$(zoxide init zsh)"
+        fi
+
+        if command -v starship >/dev/null 2>&1; then
+          eval "$(starship init zsh)"
+        fi
       '';
     };
   };

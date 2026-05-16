@@ -13,7 +13,7 @@
     };
   };
 
-  outputs = { nixpkgs, nix-darwin, home-manager, ... }: {
+  outputs = { nix-darwin, home-manager, ... }: {
     darwinConfigurations."jakobs-goated-inngest-macbook" =
       nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
