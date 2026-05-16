@@ -1,0 +1,23 @@
+{ ... }:
+
+{
+  home.file = {
+    ".config/nvim".source = ../../.config/nvim;
+    ".config/tmux".source = ../../.config/tmux;
+    ".config/starship.toml".source = ../../.config/starship.toml;
+
+    ".config/opencode/opencode.jsonc" = {
+      source = ../../.config/opencode/opencode.jsonc;
+      force = true;
+    };
+    ".config/opencode/tui.json" = {
+      source = ../../.config/opencode/tui.json;
+      force = true;
+    };
+
+    "bin/tmux-sessionizer" = {
+      source = ../../.config/tmux/scripts/tmux-sessionizer;
+      executable = true;
+    };
+  };
+}

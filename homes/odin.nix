@@ -1,78 +1,52 @@
 { pkgs, ... }:
 
-let homeDir = "/Users/jakobevangelista";
+let
+  username = "jakobevangelista";
+  homeDir = "/home/${username}";
 in {
-  imports = [ ./modules/home/shared-dotfiles.nix ];
+  imports = [ ../modules/home/shared-dotfiles.nix ];
 
   home = {
-    username = "jakobevangelista";
+    inherit username;
     homeDirectory = homeDir;
     stateVersion = "25.05";
 
+    packages = with pkgs; [
+      bat
+      fd
+      jq
+      neovim
+      opencode
+      ripgrep
+      tmux
+      tree-sitter
+      unzip
+      wget
+    ];
+
     sessionPath = [
       "${homeDir}/bin"
-
-      # Prefer Homebrew-owned CLI tools; keep the Nix profile available for HM helpers.
-      "/opt/homebrew/bin"
-      "/opt/homebrew/sbin"
-      "/etc/profiles/per-user/jakobevangelista/bin"
-
+      "${homeDir}/.local/bin"
       "${homeDir}/.cargo/bin"
       "${homeDir}/.pnpm"
       "${homeDir}/.bun/bin"
       "${homeDir}/go/bin"
       "${homeDir}/.opencode/bin"
-      "${homeDir}/.krew/bin"
-
-      # Keep vite-plus late so stale versioned Node shims do not shadow Nix/Homebrew.
-      "${homeDir}/.vite-plus/bin"
     ];
 
     sessionVariables = {
       EDITOR = "nvim";
-
-      # Python
-      PY_COLORS = "1";
-
-      # Node/pnpm
-      PNPM_HOME = "${homeDir}/.pnpm";
-
-      # Bun
-      BUN_INSTALL = "${homeDir}/.bun";
-
-      # NVM
-      NVM_DIR = "${homeDir}/.nvm";
-
-      # Pager
       PAGER = "less";
       LESS = "-R";
-      LSCOLORS = "Gxfxcxdxbxegedabagacad";
+      PY_COLORS = "1";
+      PNPM_HOME = "${homeDir}/.pnpm";
+      BUN_INSTALL = "${homeDir}/.bun";
+      NVM_DIR = "${homeDir}/.nvm";
     };
 
-    file = {
-      ".config/ghostty".source = ./.config/ghostty;
-      ".config/bat/config".text = ''
-        --theme=base16
-      '';
-      ".config/direnv/lib/hm-nix-direnv.sh".source = "${pkgs.nix-direnv}/share/nix-direnv/direnvrc";
-
-      "bin/opencode" = {
-        text = ''
-          #!/usr/bin/env sh
-
-          case "$PWD" in
-            "$HOME/personal"|"$HOME/personal"/*)
-              if [ -z "$OPENCODE_PERMISSION" ]; then
-                export OPENCODE_PERMISSION='{"bash":"allow","edit":"allow","external_directory":"allow"}'
-              fi
-              ;;
-          esac
-
-          exec "$HOME/.opencode/bin/opencode" "$@"
-        '';
-        executable = true;
-      };
-    };
+    file.".config/bat/config".text = ''
+      --theme=base16
+    '';
   };
 
   programs = {
@@ -80,7 +54,6 @@ in {
 
     git = {
       enable = true;
-      package = null;
       settings = {
         user = {
           name = "jakobevangelista";
@@ -89,37 +62,43 @@ in {
 
         init.defaultBranch = "master";
         pull.rebase = true;
-
-        # Rewrite HTTPS GitHub URLs to SSH so you never get password prompts
         url."git@github.com:".insteadOf = "https://github.com/";
       };
     };
 
-    # eza — modern ls replacement with git integration and colors
     eza = {
       enable = true;
-      package = null;
-      enableZshIntegration = true; # aliases ls, ll, la, lt, lla
+      enableZshIntegration = true;
       git = true;
       icons = "auto";
     };
 
-    # Zsh — managed by Home Manager, replaces oh-my-zsh
+    direnv = {
+      enable = true;
+      enableZshIntegration = true;
+      nix-direnv.enable = true;
+    };
+
+    fzf = {
+      enable = true;
+      enableZshIntegration = true;
+    };
+
+    starship = {
+      enable = true;
+      enableZshIntegration = true;
+    };
+
+    zoxide = {
+      enable = true;
+      enableZshIntegration = true;
+    };
+
     zsh = {
       enable = true;
       enableCompletion = true;
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
-
-      # Optimized compinit — only regenerate dump once per day
-      completionInit = ''
-        autoload -Uz compinit
-        if [[ -n ''${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then
-          compinit
-        else
-          compinit -C
-        fi
-      '';
 
       history = {
         path = "${homeDir}/.zsh_history";
@@ -141,17 +120,11 @@ in {
 
       shellAliases = {
         vim = "nvim";
-        mkproj = "~/dotfiles/scripts/make_video_project.sh";
-        backupSdCard = "~/dotfiles/scripts/backup_sd_videos.sh";
-        ingestFootage = "~/dotfiles/scripts/ingest_footage.sh";
-        backupProject = "~/dotfiles/scripts/backup_project.sh";
-        restoreProjectMedia = "~/dotfiles/scripts/restore_project_media.sh";
         md = "mkdir -p";
         "..." = "cd ../..";
         "...." = "cd ../../..";
         "....." = "cd ../../../..";
 
-        # Git aliases
         gst = "git status";
         gss = "git status --short";
         gco = "git checkout";
@@ -172,17 +145,15 @@ in {
         glog = "git log --oneline --decorate --graph";
         gsta = "git stash push";
         gstp = "git stash pop";
-        oc = "ANTHROPIC_API_KEY=dummy ANTHROPIC_BASE_URL=http://100.125.253.7:3456 opencode";
+        oc = "opencode";
       };
 
       initContent = ''
-        # Shell options (replicate useful OMZ defaults)
         setopt auto_cd auto_pushd pushd_ignore_dups pushdminus
         setopt auto_menu complete_in_word always_to_end
         setopt interactivecomments long_list_jobs multios prompt_subst
         unsetopt menu_complete flow_control
 
-        # Completion styles
         zmodload -i zsh/complist
         WORDCHARS=""
         zstyle ':completion:*' menu select
@@ -190,7 +161,6 @@ in {
         zstyle ':completion:*' special-dirs true
         zstyle ':completion:*' list-colors ""
 
-        # Key bindings
         autoload -U up-line-or-beginning-search down-line-or-beginning-search edit-command-line
         zle -N up-line-or-beginning-search
         zle -N down-line-or-beginning-search
@@ -202,7 +172,6 @@ in {
         bindkey '^[[3~' delete-char
         bindkey '^x^e' edit-command-line
 
-        # NVM (lazy-loaded — only sources nvm.sh on first use of nvm/node/npm/npx)
         function _lazy_load_nvm() {
           unset -f nvm node npm npx
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -213,30 +182,8 @@ in {
         function npm() { _lazy_load_nvm; npm "$@"; }
         function npx() { _lazy_load_nvm; npx "$@"; }
 
-        # Bun completions
         [ -s "${homeDir}/.bun/_bun" ] && source "${homeDir}/.bun/_bun"
-
-        # Envman
-        [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
-
-        # Secrets
         [ -f "$HOME/.env" ] && source "$HOME/.env"
-
-        # Homebrew-managed shell integrations
-        if command -v direnv >/dev/null 2>&1; then
-          eval "$(direnv hook zsh)"
-        fi
-
-        [ -r /opt/homebrew/opt/fzf/shell/completion.zsh ] && source /opt/homebrew/opt/fzf/shell/completion.zsh
-        [ -r /opt/homebrew/opt/fzf/shell/key-bindings.zsh ] && source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
-
-        if command -v zoxide >/dev/null 2>&1; then
-          eval "$(zoxide init zsh)"
-        fi
-
-        if command -v starship >/dev/null 2>&1; then
-          eval "$(starship init zsh)"
-        fi
       '';
     };
   };

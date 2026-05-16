@@ -1,5 +1,5 @@
 {
-  description = "Jakob's Darwin System + Home Manager Configuration";
+  description = "Jakob's Darwin and NixOS dotfiles";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -13,19 +13,34 @@
     };
   };
 
-  outputs = { nix-darwin, home-manager, ... }: {
-    darwinConfigurations."jakobs-goated-inngest-macbook" =
-      nix-darwin.lib.darwinSystem {
-        system = "aarch64-darwin";
+  outputs = { nixpkgs, nix-darwin, home-manager, ... }:
+    let username = "jakobevangelista";
+    in {
+      darwinConfigurations."jakobs-goated-inngest-macbook" =
+        nix-darwin.lib.darwinSystem {
+          system = "aarch64-darwin";
+          modules = [
+            ./darwin.nix
+            home-manager.darwinModules.home-manager
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.users.${username} = import ./home.nix;
+            }
+          ];
+        };
+
+      nixosConfigurations."odin" = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
         modules = [
-          ./darwin.nix
-          home-manager.darwinModules.home-manager
+          ./hosts/nixos/odin
+          home-manager.nixosModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.users.jakobevangelista = import ./home.nix;
+            home-manager.users.${username} = import ./homes/odin.nix;
           }
         ];
       };
-  };
+    };
 }
