@@ -1,6 +1,14 @@
 { ... }:
 
 {
+  programs.jujutsu = {
+    enable = true;
+    settings.user = {
+      name = "jakobevangelista";
+      email = "jakobevangelista@gmail.com";
+    };
+  };
+
   home.file = {
     ".config/nvim".source = ../../.config/nvim;
     ".config/tmux".source = ../../.config/tmux;
