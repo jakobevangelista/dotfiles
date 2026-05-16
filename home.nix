@@ -156,7 +156,6 @@ in {
 
       shellAliases = {
         vim = "nvim";
-        nviml = "NVIM_APPNAME=lazyvim nvim";
         mkproj = "~/dotfiles/scripts/make_video_project.sh";
         backupSdCard = "~/dotfiles/scripts/backup_sd_videos.sh";
         ingestFootage = "~/dotfiles/scripts/ingest_footage.sh";
@@ -217,19 +216,6 @@ in {
         bindkey '^[[1;5D' backward-word
         bindkey '^[[3~' delete-char
         bindkey '^x^e' edit-command-line
-
-        # git_main_branch helper (for aliases like gcm if added later)
-        function git_main_branch() {
-          command git rev-parse --git-dir &>/dev/null || return
-          local ref
-          for ref in refs/{heads,remotes/{origin,upstream}}/{main,trunk,mainline,default,stable,master}; do
-            if command git show-ref -q --verify $ref; then
-              echo ''${ref:t}
-              return 0
-            fi
-          done
-          echo master
-        }
 
         # NVM (lazy-loaded — only sources nvm.sh on first use of nvm/node/npm/npx)
         function _lazy_load_nvm() {
