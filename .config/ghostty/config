@@ -2,7 +2,7 @@ font-feature = -liga
 font-family = "GeistMono Nerd Font"
 theme = elementary
 macos-icon = xray
-keybind = shift+enter=text:\x1b[13;2u
-keybind = alt+shift+h=text:\x1bH
-keybind = alt+shift+l=text:\x1bL
+keybind = shift+enter=csi:13;2u
+keybind = alt+shift+h=esc:H
+keybind = alt+shift+l=esc:L
 shell-integration-features = no-cursor,sudo,ssh-env
