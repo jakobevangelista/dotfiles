@@ -61,6 +61,7 @@ in {
       PNPM_HOME = "${homeDir}/.pnpm";
       BUN_INSTALL = "${homeDir}/.bun";
       NVM_DIR = "${homeDir}/.nvm";
+      OPENCODE_TUI_CONFIG = "${homeDir}/.config/opencode/hosts/odin-tui.json";
     };
 
     file = {
@@ -69,6 +70,8 @@ in {
       '';
 
       ".config/starship.toml" = lib.mkForce { text = odinStarshipConfig; };
+      ".config/opencode/hosts/odin-tui.json".source =
+        ../.config/opencode/hosts/odin-tui.json;
     };
   };
 
