@@ -30,6 +30,7 @@ in {
     packages = with pkgs; [
       bat
       fd
+      gcc
       jq
       neovim
       opencode
@@ -38,6 +39,8 @@ in {
       tree-sitter
       unzip
       wget
+      pyright
+      typescript-language-server
     ];
 
     sessionPath = [
