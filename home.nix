@@ -55,8 +55,14 @@ in {
         --theme=base16
       '';
       ".config/direnv/lib/hm-nix-direnv.sh".source = "${pkgs.nix-direnv}/share/nix-direnv/direnvrc";
-      ".config/opencode/opencode.jsonc".source = ./.config/opencode/opencode.jsonc;
-      ".config/opencode/tui.json".source = ./.config/opencode/tui.json;
+      ".config/opencode/opencode.jsonc" = {
+        source = ./.config/opencode/opencode.jsonc;
+        force = true;
+      };
+      ".config/opencode/tui.json" = {
+        source = ./.config/opencode/tui.json;
+        force = true;
+      };
       ".config/starship.toml".source = ./.config/starship.toml;
 
       # Scripts
@@ -90,11 +96,15 @@ in {
     git = {
       enable = true;
       package = null;
-      userName = "jakobevangelista";
-      userEmail = "jakobevangelista@gmail.com";
-      extraConfig = {
+      settings = {
+        user = {
+          name = "jakobevangelista";
+          email = "jakobevangelista@gmail.com";
+        };
+
         init.defaultBranch = "master";
         pull.rebase = true;
+
         # Rewrite HTTPS GitHub URLs to SSH so you never get password prompts
         url."git@github.com:".insteadOf = "https://github.com/";
       };
@@ -181,7 +191,7 @@ in {
         oc = "ANTHROPIC_API_KEY=dummy ANTHROPIC_BASE_URL=http://100.125.253.7:3456 opencode";
       };
 
-      initExtra = ''
+      initContent = ''
         # Shell options (replicate useful OMZ defaults)
         setopt auto_cd auto_pushd pushd_ignore_dups pushdminus
         setopt auto_menu complete_in_word always_to_end
@@ -259,4 +269,6 @@ in {
       '';
     };
   };
+
+  manual.manpages.enable = false;
 }

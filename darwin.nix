@@ -3,6 +3,9 @@
   nix.enable = false;
   nixpkgs.config.allowUnfree = true;
 
+  # Avoid building generated option manuals that currently emit upstream warnings.
+  documentation.enable = false;
+
   # Homebrew — managed declaratively by nix-darwin
   # Anything not listed here gets removed on rebuild (cleanup = "zap")
   # To add a new tool: add it below, then run `darwin-rebuild switch --flake ~/dotfiles`
@@ -54,7 +57,7 @@
       "ngrok"
       "notion"
       "orbstack"
-      "syncthing"
+      "syncthing-app"
       "zoom"
     ];
   };
