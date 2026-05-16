@@ -1,8 +1,24 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
 let
   username = "jakob";
   homeDir = "/home/${username}";
+  odinStarshipConfig = builtins.replaceStrings
+    [ ''format = "$directory'' ]
+    [ ''format = "$username$hostname$directory'' ]
+    (builtins.readFile ../.config/starship.toml) + ''
+
+    [username]
+    format = "[$user]($style)"
+    style_user = "bold cyan"
+    style_root = "bold red"
+    show_always = true
+
+    [hostname]
+    format = "[@$hostname]($style) "
+    style = "bold cyan"
+    ssh_only = false
+  '';
 in {
   imports = [ ../modules/home/shared-dotfiles.nix ];
 
@@ -44,9 +60,13 @@ in {
       NVM_DIR = "${homeDir}/.nvm";
     };
 
-    file.".config/bat/config".text = ''
-      --theme=base16
-    '';
+    file = {
+      ".config/bat/config".text = ''
+        --theme=base16
+      '';
+
+      ".config/starship.toml" = lib.mkForce { text = odinStarshipConfig; };
+    };
   };
 
   programs = {
