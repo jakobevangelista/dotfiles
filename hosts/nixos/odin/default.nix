@@ -23,6 +23,11 @@ in {
 
   services.openssh.enable = true;
 
+  services.tailscale = {
+    enable = true;
+    openFirewall = true;
+  };
+
   programs.zsh.enable = true;
 
   users.users.${username} = {
