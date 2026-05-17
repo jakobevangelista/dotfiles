@@ -31,6 +31,7 @@ in {
       bat
       fd
       gcc
+      ghostty.terminfo
       jq
       neovim
       opencode

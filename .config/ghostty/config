@@ -5,4 +5,4 @@ macos-icon = xray
 keybind = shift+enter=csi:13;2u
 keybind = alt+shift+h=esc:H
 keybind = alt+shift+l=esc:L
-shell-integration-features = no-cursor,sudo,ssh-env
+shell-integration-features = no-cursor,sudo,ssh-terminfo,ssh-env
