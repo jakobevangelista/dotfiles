@@ -19,6 +19,9 @@ let
     style = "bold cyan"
     ssh_only = false
   '';
+  odinOpencodeTuiConfig = lib.recursiveUpdate
+    (builtins.fromJSON (builtins.readFile ../.config/opencode/tui.json))
+    (builtins.fromJSON (builtins.readFile ../.config/opencode/hosts/odin-tui.json));
 in {
   imports = [ ../modules/home/shared-dotfiles.nix ];
 
@@ -62,7 +65,6 @@ in {
       PNPM_HOME = "${homeDir}/.pnpm";
       BUN_INSTALL = "${homeDir}/.bun";
       NVM_DIR = "${homeDir}/.nvm";
-      OPENCODE_TUI_CONFIG = "${homeDir}/.config/opencode/hosts/odin-tui.json";
     };
 
     file = {
@@ -71,8 +73,8 @@ in {
       '';
 
       ".config/starship.toml" = lib.mkForce { text = odinStarshipConfig; };
-      ".config/opencode/hosts/odin-tui.json".source =
-        ../.config/opencode/hosts/odin-tui.json;
+      ".config/opencode/tui.json" =
+        lib.mkForce { text = builtins.toJSON odinOpencodeTuiConfig + "\n"; };
     };
   };
 
