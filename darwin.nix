@@ -7,13 +7,13 @@
   documentation.enable = false;
 
   # Homebrew — managed declaratively by nix-darwin
-  # Anything not listed here gets removed on rebuild (cleanup = "zap")
+  # Listed packages are installed on rebuild; manually installed packages are left alone.
   # To add a new tool: add it below, then run `darwin-rebuild switch --flake ~/dotfiles`
   homebrew = {
     enable = true;
     onActivation = {
       autoUpdate = true;
-      cleanup = "zap";
+      cleanup = "none";
     };
 
     taps = [ "derailed/k9s" "hashicorp/tap" "stripe/stripe-cli" ];
