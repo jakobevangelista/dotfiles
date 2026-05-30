@@ -17,6 +17,11 @@
     let
       darwinUsername = "jakobevangelista";
       odinUsername = "jakob";
+      opencodeOverlay = _final: prev: {
+        opencode = prev.callPackage ./pkgs/opencode {
+          opencode = prev.opencode;
+        };
+      };
     in {
       darwinConfigurations."jakobs-goated-inngest-macbook" =
         nix-darwin.lib.darwinSystem {
@@ -37,6 +42,7 @@
         modules = [
           ./hosts/nixos/odin
           home-manager.nixosModules.home-manager
+          { nixpkgs.overlays = [ opencodeOverlay ]; }
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
