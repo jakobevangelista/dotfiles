@@ -51,7 +51,7 @@
     ];
 
     casks = [
-      "claude-code"
+      "claude-code@latest"
       "codex"
       "ghostty"
       "ngrok"
