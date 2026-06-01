@@ -20,6 +20,7 @@
       linuxSystem = "x86_64-linux";
       linuxPkgs = nixpkgs.legacyPackages.${linuxSystem};
       opencodeOverlay = _final: prev: {
+        codex = prev.callPackage ./pkgs/codex { };
         opencode = prev.callPackage ./pkgs/opencode {
           opencode = prev.opencode;
         };

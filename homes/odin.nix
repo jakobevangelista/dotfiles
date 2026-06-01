@@ -32,6 +32,7 @@ in {
 
     packages = with pkgs; [
       bat
+      codex
       fd
       gcc
       go
