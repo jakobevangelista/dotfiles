@@ -5,12 +5,14 @@ return {
     event = { 'BufReadPre', 'BufNewFile' },
     config = function()
       local lint = require 'lint'
-      lint.linters_by_ft = {
-        javascript = { 'eslint_d' },
-        typescript = { 'eslint_d' },
-        javascriptreact = { 'eslint_d' },
-        typescriptreact = { 'eslint_d' },
-      }
+      lint.linters_by_ft = {}
+
+      if vim.fn.executable 'eslint_d' == 1 then
+        lint.linters_by_ft.javascript = { 'eslint_d' }
+        lint.linters_by_ft.typescript = { 'eslint_d' }
+        lint.linters_by_ft.javascriptreact = { 'eslint_d' }
+        lint.linters_by_ft.typescriptreact = { 'eslint_d' }
+      end
 
       if vim.fn.executable 'markdownlint' == 1 then
         lint.linters_by_ft.markdown = { 'markdownlint' }

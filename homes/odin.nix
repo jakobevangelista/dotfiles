@@ -35,7 +35,6 @@ in {
       fd
       gcc
       go
-      gopls
       ghostty.terminfo
       jq
       neovim
@@ -45,8 +44,6 @@ in {
       tree-sitter
       unzip
       wget
-      pyright
-      typescript-language-server
     ];
 
     sessionPath = [

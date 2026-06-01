@@ -12,7 +12,7 @@ in {
     sessionPath = [
       "${homeDir}/bin"
 
-      # Prefer Homebrew-owned CLI tools; keep the Nix profile available for HM helpers.
+      # Prefer Homebrew-owned general CLI tools; Nix provides HM packages and editor tooling.
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
       "/etc/profiles/per-user/jakobevangelista/bin"

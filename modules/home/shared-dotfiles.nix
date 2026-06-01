@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 
 {
   programs.jujutsu = {
@@ -8,6 +8,18 @@
       email = "jakobevangelista@gmail.com";
     };
   };
+
+  home.packages = with pkgs; [
+    eslint_d
+    gopls
+    lua-language-server
+    marksman
+    markdownlint-cli
+    prettierd
+    pyright
+    stylua
+    typescript-language-server
+  ];
 
   home.file = {
     ".config/nvim".source = ../../.config/nvim;
