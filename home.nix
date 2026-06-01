@@ -11,6 +11,7 @@ in {
 
     sessionPath = [
       "${homeDir}/bin"
+      "${homeDir}/.local/bin"
 
       # Prefer Homebrew-owned general CLI tools; Nix provides HM packages and editor tooling.
       "/opt/homebrew/bin"
