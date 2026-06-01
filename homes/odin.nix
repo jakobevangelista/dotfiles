@@ -34,6 +34,8 @@ in {
       bat
       fd
       gcc
+      go
+      gopls
       ghostty.terminfo
       jq
       neovim
