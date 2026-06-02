@@ -19,7 +19,7 @@
       odinUsername = "jakob";
       linuxSystem = "x86_64-linux";
       linuxPkgs = nixpkgs.legacyPackages.${linuxSystem};
-      opencodeOverlay = _final: prev: {
+      localPackagesOverlay = _final: prev: {
         codex = prev.callPackage ./pkgs/codex { };
         opencode = prev.callPackage ./pkgs/opencode {
           opencode = prev.opencode;
@@ -60,15 +60,11 @@
 
       nixosConfigurations."odin" = nixpkgs.lib.nixosSystem {
         system = linuxSystem;
+        specialArgs = { dotfilesPackages = self.packages.${linuxSystem}; };
         modules = [
           ./hosts/nixos/odin
           home-manager.nixosModules.home-manager
-          { nixpkgs.overlays = [ opencodeOverlay ]; }
-          {
-            environment.systemPackages = [ self.packages.${linuxSystem}.huginn ];
-            environment.etc."huginn/base-manifest.json".source =
-              self.packages.${linuxSystem}.huginn-base-manifest;
-          }
+          { nixpkgs.overlays = [ localPackagesOverlay ]; }
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;

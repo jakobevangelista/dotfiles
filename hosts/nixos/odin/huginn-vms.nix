@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ dotfilesPackages, pkgs, ... }:
 
 let
   bridgeName = "virbr0";
@@ -24,6 +24,10 @@ let
     server=8.8.8.8
   '';
 in {
+  environment.systemPackages = [ dotfilesPackages.huginn ];
+  environment.etc."huginn/base-manifest.json".source =
+    dotfilesPackages.huginn-base-manifest;
+
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
   networking = {
