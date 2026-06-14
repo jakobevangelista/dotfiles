@@ -123,23 +123,9 @@ lsblk -f
 parted /dev/nvme0n1 -- print free
 ```
 
-In the `Free Space` row, use the `Start` value as the start of the new partition. Use the `End` value as the end, or `100%` only if that free space reaches the end of the disk. You can also choose a smaller end value if you only want to use part of the free space. For example, if `parted -- print free` shows free space from `200GiB` to the end of the disk, create the NixOS root partition there:
+In the `Free Space` row, use the `Start` value as the start of the new partitions. Use the `End` value as the end, or `100%` only if that free space reaches the end of the disk. You can also choose a smaller end value if you only want to use part of the free space.
 
-```bash
-parted /dev/nvme0n1 -- mkpart primary ext4 200GiB 100%
-lsblk -f                       # identify the new partition number
-mkfs.ext4 -L nixos /dev/nvme0n1pX
-```
-
-If the disk already has an EFI System Partition, reuse it for `/boot`; do not format it:
-
-```bash
-mount /dev/disk/by-label/nixos /mnt
-mkdir -p /mnt/boot
-mount /dev/nvme0n1pY /mnt/boot  # existing EFI System Partition
-```
-
-If there is no EFI System Partition, create a 512 MiB ESP at the start of the free range, then create root after it. For example, if free space starts at `200GiB`:
+Create a dedicated 512 MiB Odin ESP at the start of the free range, then create root after it. This avoids depending on a tiny existing Windows ESP. For example, if free space starts at `200GiB`:
 
 ```bash
 parted /dev/nvme0n1 -- mkpart ESP fat32 200GiB 200.5GiB
@@ -155,6 +141,8 @@ mount /dev/disk/by-label/nixos /mnt
 mkdir -p /mnt/boot
 mount /dev/disk/by-label/BOOT /mnt/boot
 ```
+
+If you intentionally reuse an existing sufficiently large ESP, skip creating/formatting the `BOOT` partition and mount the existing ESP at `/mnt/boot` instead.
 
 `primary` is just the partition name/type passed to `parted`; the important values are the `Start` and `End` boundaries. Always confirm the new partition names with `lsblk -f` before formatting.
 
