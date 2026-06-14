@@ -92,7 +92,11 @@ lsblk -f                       # identify the real target device
 ls /sys/firmware/efi/efivars   # must exist (confirms UEFI boot)
 ```
 
-The commands below assume `/dev/nvme0n1`. **Substitute your actual device everywhere**. These commands **wipe the disk**.
+Choose one partitioning path below. The examples assume `/dev/nvme0n1`; **substitute your actual device everywhere**.
+
+#### Option A: Wipe the Whole Disk
+
+Use this only for a fresh disk or when you intentionally want to erase the full drive. `mklabel gpt` replaces the partition table.
 
 ```bash
 parted /dev/nvme0n1 -- mklabel gpt
@@ -107,6 +111,52 @@ mount /dev/disk/by-label/nixos /mnt
 mkdir -p /mnt/boot
 mount /dev/disk/by-label/BOOT /mnt/boot
 ```
+
+#### Option B: Use Existing Unallocated Space
+
+Use this when the disk already has partitions you want to keep. **Do not run `mklabel gpt`**, and do not run `mkfs.*` on existing partitions.
+
+First inspect the disk and find the free range you want to use:
+
+```bash
+lsblk -f
+parted /dev/nvme0n1 -- print free
+```
+
+In the `Free Space` row, use the `Start` value as the start of the new partition. Use the `End` value as the end, or `100%` only if that free space reaches the end of the disk. You can also choose a smaller end value if you only want to use part of the free space. For example, if `parted -- print free` shows free space from `200GiB` to the end of the disk, create the NixOS root partition there:
+
+```bash
+parted /dev/nvme0n1 -- mkpart primary ext4 200GiB 100%
+lsblk -f                       # identify the new partition number
+mkfs.ext4 -L nixos /dev/nvme0n1pX
+```
+
+If the disk already has an EFI System Partition, reuse it for `/boot`; do not format it:
+
+```bash
+mount /dev/disk/by-label/nixos /mnt
+mkdir -p /mnt/boot
+mount /dev/nvme0n1pY /mnt/boot  # existing EFI System Partition
+```
+
+If there is no EFI System Partition, create a 512 MiB ESP at the start of the free range, then create root after it. For example, if free space starts at `200GiB`:
+
+```bash
+parted /dev/nvme0n1 -- mkpart ESP fat32 200GiB 200.5GiB
+parted /dev/nvme0n1 -- print     # identify the new ESP partition number
+parted /dev/nvme0n1 -- set X esp on
+parted /dev/nvme0n1 -- mkpart primary ext4 200.5GiB 100%
+lsblk -f                       # identify the new ESP/root partition numbers
+
+mkfs.fat -F 32 -n BOOT /dev/nvme0n1pX
+mkfs.ext4 -L nixos /dev/nvme0n1pY
+
+mount /dev/disk/by-label/nixos /mnt
+mkdir -p /mnt/boot
+mount /dev/disk/by-label/BOOT /mnt/boot
+```
+
+`primary` is just the partition name/type passed to `parted`; the important values are the `Start` and `End` boundaries. Always confirm the new partition names with `lsblk -f` before formatting.
 
 Generate the hardware config, clone this repo, copy the generated hardware config into the Odin host, **and commit it** so the flake actually uses it instead of the stub:
 
