@@ -22,6 +22,9 @@ let
   odinOpencodeTuiConfig = lib.recursiveUpdate
     (builtins.fromJSON (builtins.readFile ../.config/opencode/tui.json))
     (builtins.fromJSON (builtins.readFile ../.config/opencode/hosts/odin-tui.json));
+  odinOpencodeConfig = lib.recursiveUpdate
+    (builtins.fromJSON (builtins.readFile ../.config/opencode/opencode.jsonc))
+    (builtins.fromJSON (builtins.readFile ../.config/opencode/hosts/odin-opencode.jsonc));
 in {
   imports = [ ../modules/home/shared-dotfiles.nix ];
 
@@ -73,6 +76,8 @@ in {
       '';
 
       ".config/starship.toml" = lib.mkForce { text = odinStarshipConfig; };
+      ".config/opencode/opencode.jsonc" =
+        lib.mkForce { text = builtins.toJSON odinOpencodeConfig + "\n"; };
       ".config/opencode/tui.json" =
         lib.mkForce { text = builtins.toJSON odinOpencodeTuiConfig + "\n"; };
     };

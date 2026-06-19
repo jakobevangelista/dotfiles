@@ -1,5 +1,4 @@
 {
   "$schema": "https://opencode.ai/tui.json",
-  "theme": "aura",
-  "permission": "allow"
+  "theme": "aura"
 }
