@@ -59,8 +59,12 @@ Persistent instance state:
 /var/lib/huginn/instances/<id>/
   state.json
   metadata/
+    ssh_host_ed25519_key
+    ssh_host_ed25519_key.pub
   logs/
 ```
+
+The SSH host key is generated once per instance and reused across `stop`/`start`, so clients do not see a new server identity every time an ephemeral guest root boots.
 
 Runtime sockets:
 

@@ -73,13 +73,17 @@
   systemd.services.huginn-metadata = {
     description = "Apply Huginn VM metadata";
     wantedBy = [ "multi-user.target" ];
+    requiredBy = [ "sshd-keygen.service" ];
     after = [ "local-fs.target" ];
+    before = [ "sshd-keygen.service" "sshd.service" ];
     serviceConfig.Type = "oneshot";
     script = ''
       set -euo pipefail
 
       metadata=/run/huginn/metadata
       hostname_file=$metadata/hostname
+      host_key=$metadata/ssh_host_ed25519_key
+      host_key_pub=$metadata/ssh_host_ed25519_key.pub
 
       if [ -r "$hostname_file" ]; then
         hostname="$(${pkgs.coreutils}/bin/tr -cd 'A-Za-z0-9.-' < "$hostname_file" | ${pkgs.coreutils}/bin/head -c 63)"
@@ -87,11 +91,26 @@
           ${pkgs.systemd}/bin/hostnamectl set-hostname "$hostname" || true
         fi
       fi
+
+      if [ -r "$host_key" ]; then
+        ${pkgs.coreutils}/bin/install -d -m 0755 /etc/ssh
+        ${pkgs.coreutils}/bin/install -m 0600 -o root -g root "$host_key" /etc/ssh/ssh_host_ed25519_key
+        if [ -r "$host_key_pub" ]; then
+          ${pkgs.coreutils}/bin/install -m 0644 -o root -g root "$host_key_pub" /etc/ssh/ssh_host_ed25519_key.pub
+        else
+          ${pkgs.openssh}/bin/ssh-keygen -y -f /etc/ssh/ssh_host_ed25519_key > /etc/ssh/ssh_host_ed25519_key.pub
+          ${pkgs.coreutils}/bin/chmod 0644 /etc/ssh/ssh_host_ed25519_key.pub
+        fi
+      fi
     '';
   };
 
   services.openssh = {
     enable = true;
+    hostKeys = [{
+      path = "/etc/ssh/ssh_host_ed25519_key";
+      type = "ed25519";
+    }];
     settings = {
       KbdInteractiveAuthentication = false;
       PasswordAuthentication = false;

@@ -18,6 +18,7 @@ Implemented:
 - dynamic VM IDs, TAPs, MACs, metadata, state JSON, and logs
 - host-side DHCP lease polling
 - host-side Prometheus file-SD target registration
+- persistent per-instance SSH host keys
 - read-only host `/nix/store` share with guest tmpfs writable overlay
 
 Not implemented yet:
@@ -119,6 +120,7 @@ The base guest config includes:
 - DHCP networking with systemd-networkd
 - SSH server for user `jakob`
 - public-key authentication only
+- per-instance Ed25519 SSH host key from metadata
 - no passwordless sudo
 - node exporter on `:9100`
 
@@ -250,6 +252,8 @@ Persistent state:
         mac
         tap
         ssh-authorized-keys
+        ssh_host_ed25519_key
+        ssh_host_ed25519_key.pub
       logs/
         serial.log
         cloud-hypervisor.log

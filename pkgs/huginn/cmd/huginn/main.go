@@ -22,6 +22,7 @@ var (
 	defaultCloudHypervisor = "cloud-hypervisor"
 	defaultVirtiofsd       = "virtiofsd"
 	defaultIP              = "ip"
+	defaultSSHKeygen       = "ssh-keygen"
 )
 
 const (
@@ -382,6 +383,10 @@ func makeInstanceDirs(id string) error {
 }
 
 func writeMetadata(state *instanceState) error {
+	if err := ensureHostKey(state); err != nil {
+		return err
+	}
+
 	files := map[string]string{
 		"instance-id": state.ID + "\n",
 		"hostname":    state.Name + "\n",
@@ -397,6 +402,45 @@ func writeMetadata(state *instanceState) error {
 		}
 	}
 	return nil
+}
+
+func ensureHostKey(state *instanceState) error {
+	keyPath := metadataHostKeyPath(state.ID)
+	publicKeyPath := keyPath + ".pub"
+
+	if _, err := os.Stat(keyPath); err == nil {
+		if err := os.Chmod(keyPath, 0600); err != nil {
+			return err
+		}
+		if _, err := os.Stat(publicKeyPath); errors.Is(err, os.ErrNotExist) {
+			return writePublicHostKey(keyPath, publicKeyPath)
+		} else if err != nil {
+			return err
+		}
+		return os.Chmod(publicKeyPath, 0644)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	_ = os.Remove(publicKeyPath)
+	cmd := exec.Command(defaultSSHKeygen, "-q", "-t", "ed25519", "-N", "", "-C", state.Name, "-f", keyPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("ssh-keygen host key: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	if err := os.Chmod(keyPath, 0600); err != nil {
+		return err
+	}
+	return os.Chmod(publicKeyPath, 0644)
+}
+
+func writePublicHostKey(keyPath, publicKeyPath string) error {
+	cmd := exec.Command(defaultSSHKeygen, "-y", "-f", keyPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ssh-keygen public host key: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	publicKey := strings.TrimSpace(string(output)) + "\n"
+	return os.WriteFile(publicKeyPath, []byte(publicKey), 0644)
 }
 
 func startRuntime(state *instanceState) error {
@@ -802,6 +846,10 @@ func instanceDir(id string) string { return filepath.Join(instancesRoot, id) }
 func metadataDir(id string) string { return filepath.Join(instanceDir(id), "metadata") }
 func logsDir(id string) string     { return filepath.Join(instanceDir(id), "logs") }
 func runtimeDir(id string) string  { return filepath.Join(runRoot, id) }
+
+func metadataHostKeyPath(id string) string {
+	return filepath.Join(metadataDir(id), "ssh_host_ed25519_key")
+}
 
 func apiSocket(id string) string      { return filepath.Join(runtimeDir(id), "ch.sock") }
 func roStoreSocket(id string) string  { return filepath.Join(runtimeDir(id), "ro-store.sock") }

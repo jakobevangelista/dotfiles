@@ -2,6 +2,7 @@
 , cloud-hypervisor
 , iproute2
 , lib
+, openssh
 , virtiofsd
 }:
 
@@ -19,6 +20,7 @@ buildGoModule {
     "-X main.defaultCloudHypervisor=${lib.getExe cloud-hypervisor}"
     "-X main.defaultVirtiofsd=${lib.getExe virtiofsd}"
     "-X main.defaultIP=${iproute2}/bin/ip"
+    "-X main.defaultSSHKeygen=${openssh}/bin/ssh-keygen"
   ];
 
   meta = {
