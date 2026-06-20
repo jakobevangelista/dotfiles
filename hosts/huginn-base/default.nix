@@ -103,7 +103,7 @@
     isNormalUser = true;
     description = "Jakob Evangelista";
     openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIlygks670GFZRs9qEinFIZspiSciH7gD47Bougpcz3O odin"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPK+KglkNTvuL57ORBCX/npKJA7h6iVOTqkjhRIkwTbt odin"
     ];
   };
 
