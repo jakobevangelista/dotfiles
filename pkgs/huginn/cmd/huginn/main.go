@@ -75,6 +75,8 @@ func run(args []string) error {
 	switch command {
 	case "create":
 		return create(args)
+	case "start":
+		return start(args)
 	case "list":
 		return list(args)
 	case "status":
@@ -99,6 +101,7 @@ func usage(w io.Writer) {
 	fprintf("Usage: huginn <command> [args]\n\n")
 	fprintf("Commands:\n")
 	fprintf("  create [id]       Start a new VM from the base manifest\n")
+	fprintf("  start <id>        Start a stopped VM\n")
 	fprintf("  list              List known VMs\n")
 	fprintf("  status <id>       Show VM state\n")
 	fprintf("  stop <id>         Stop a VM and keep its state directory\n")
@@ -160,56 +163,58 @@ func create(args []string) error {
 	if err := writeMetadata(state); err != nil {
 		return err
 	}
-	if err := setupTap(state.Tap); err != nil {
+	if err := startRuntime(state); err != nil {
 		return err
-	}
-
-	storePID, err := startVirtiofsd(state, "store", "/nix/store", roStoreSocket(id), true)
-	if err != nil {
-		return err
-	}
-	state.StoreVirtiofsdPID = storePID
-
-	metadataPID, err := startVirtiofsd(state, "metadata", metadataDir(id), metadataSocket(id), false)
-	if err != nil {
-		return err
-	}
-	state.MetadataVirtiofsdPID = metadataPID
-
-	cloudHypervisorPID, err := startCloudHypervisor(state)
-	if err != nil {
-		return err
-	}
-	state.CloudHypervisorPID = cloudHypervisorPID
-	state.Status = "running"
-	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	if err := writeState(state); err != nil {
-		return err
-	}
-
-	if err := waitForSocket(apiSocket(id), cloudHypervisorPID, 10*time.Second); err != nil {
-		return err
-	}
-
-	if ip, err := waitForLease(state.MAC, 75*time.Second); err == nil && ip != "" {
-		state.IP = ip
-		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-		if err := writeState(state); err != nil {
-			return err
-		}
-		if err := writePrometheusTarget(state); err != nil {
-			return err
-		}
-	} else {
-		fmt.Fprintf(os.Stderr, "huginn: warning: started %s but no DHCP lease appeared yet\n", state.Name)
 	}
 
 	success = true
-	if state.IP != "" {
-		fmt.Printf("started %s %s\n", state.Name, state.IP)
-	} else {
-		fmt.Printf("started %s\n", state.Name)
+	printStarted(state)
+	return nil
+}
+
+func start(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("usage: huginn start <id>")
 	}
+	if err := requireRoot(); err != nil {
+		return err
+	}
+
+	state, err := loadState(args[0])
+	if err != nil {
+		return err
+	}
+	if runtimeStatus(state) == "running" {
+		return fmt.Errorf("instance %s is already running", state.ID)
+	}
+
+	success := false
+	defer func() {
+		if !success {
+			cleanupRuntime(state)
+			_ = markStopped(state)
+		}
+	}()
+
+	manifest, err := readManifest()
+	if err != nil {
+		return err
+	}
+	state.Manifest = manifest
+
+	cleanupRuntime(state)
+	if err := makeInstanceDirs(state.ID); err != nil {
+		return err
+	}
+	if err := writeMetadata(state); err != nil {
+		return err
+	}
+	if err := startRuntime(state); err != nil {
+		return err
+	}
+
+	success = true
+	printStarted(state)
 	return nil
 }
 
@@ -394,6 +399,61 @@ func writeMetadata(state *instanceState) error {
 	return nil
 }
 
+func startRuntime(state *instanceState) error {
+	state.Status = "starting"
+	state.IP = ""
+	state.CloudHypervisorPID = 0
+	state.StoreVirtiofsdPID = 0
+	state.MetadataVirtiofsdPID = 0
+	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	if err := setupTap(state.Tap); err != nil {
+		return err
+	}
+
+	storePID, err := startVirtiofsd(state, "store", "/nix/store", roStoreSocket(state.ID), true)
+	if err != nil {
+		return err
+	}
+	state.StoreVirtiofsdPID = storePID
+
+	metadataPID, err := startVirtiofsd(state, "metadata", metadataDir(state.ID), metadataSocket(state.ID), false)
+	if err != nil {
+		return err
+	}
+	state.MetadataVirtiofsdPID = metadataPID
+
+	cloudHypervisorPID, err := startCloudHypervisor(state)
+	if err != nil {
+		return err
+	}
+	state.CloudHypervisorPID = cloudHypervisorPID
+	state.Status = "running"
+	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := writeState(state); err != nil {
+		return err
+	}
+
+	if err := waitForSocket(apiSocket(state.ID), cloudHypervisorPID, 10*time.Second); err != nil {
+		return err
+	}
+
+	if ip, err := waitForLease(state.MAC, 75*time.Second); err == nil && ip != "" {
+		state.IP = ip
+		state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		if err := writeState(state); err != nil {
+			return err
+		}
+		if err := writePrometheusTarget(state); err != nil {
+			return err
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "huginn: warning: started %s but no DHCP lease appeared yet\n", state.Name)
+	}
+
+	return nil
+}
+
 func setupTap(name string) error {
 	if err := runIP("link", "show", "dev", name); err == nil {
 		return fmt.Errorf("tap %s already exists", name)
@@ -548,14 +608,11 @@ func writePrometheusTarget(state *instanceState) error {
 }
 
 func stopInstance(state *instanceState) error {
-	_ = os.Remove(prometheusTargetPath(state))
+	cleanupRuntime(state)
+	return markStopped(state)
+}
 
-	_ = killProcessGroup(state.CloudHypervisorPID, "cloud-hypervisor")
-	_ = killProcessGroup(state.StoreVirtiofsdPID, "virtiofsd")
-	_ = killProcessGroup(state.MetadataVirtiofsdPID, "virtiofsd")
-	_ = deleteTap(state.Tap)
-	_ = os.RemoveAll(runtimeDir(state.ID))
-
+func markStopped(state *instanceState) error {
 	state.Status = "stopped"
 	state.IP = ""
 	state.CloudHypervisorPID = 0
@@ -563,6 +620,14 @@ func stopInstance(state *instanceState) error {
 	state.MetadataVirtiofsdPID = 0
 	state.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	return writeState(state)
+}
+
+func printStarted(state *instanceState) {
+	if state.IP != "" {
+		fmt.Printf("started %s %s\n", state.Name, state.IP)
+	} else {
+		fmt.Printf("started %s\n", state.Name)
+	}
 }
 
 func cleanupRuntime(state *instanceState) {

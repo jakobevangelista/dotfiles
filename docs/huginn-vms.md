@@ -130,6 +130,7 @@ Commands:
 
 ```text
 sudo huginn create [id]
+sudo huginn start <id>
 huginn list
 huginn status <id>
 sudo huginn stop <id>
@@ -151,6 +152,8 @@ huginn logs <id> [serial|cloud-hypervisor|virtiofsd-store|virtiofsd-metadata]
 10. Wait for the Cloud Hypervisor API socket.
 11. Poll the dnsmasq lease file for the VM IP.
 12. Write the Prometheus target file.
+
+`start` reuses an existing stopped VM's ID, name, MAC, TAP, metadata, and logs. It refreshes the base manifest from `/etc/huginn/base-manifest.json`, removes stale runtime artifacts, recreates the runtime sockets and TAP, starts `virtiofsd` and Cloud Hypervisor, then waits for DHCP again.
 
 No Nix command runs in this flow.
 
@@ -319,6 +322,13 @@ Check node exporter:
 curl http://<vm-ip>:9100/metrics
 ```
 
+Stop and start it again:
+
+```sh
+sudo huginn stop test1
+sudo huginn start test1
+```
+
 Destroy it:
 
 ```sh
@@ -346,6 +356,8 @@ sudo huginn create test1
 huginn status test1
 curl http://<vm-ip>:9100/metrics
 ssh jakob@<vm-ip>
+sudo huginn stop test1
+sudo huginn start test1
 sudo huginn destroy test1
 ```
 
@@ -427,12 +439,12 @@ The current implementation is intentionally barebones. These are the missing pie
 
 - Reconcile `/var/lib/huginn/instances/*` against live processes after host reboot, daemon restart, or CLI crash.
 - Detect stale TAP devices, stale sockets, stale Prometheus target files, and orphaned `virtiofsd` processes.
-- Implement idempotent cleanup for partially failed `create`, `stop`, and `destroy` flows.
+- Implement idempotent cleanup for partially failed `create`, `start`, `stop`, and `destroy` flows.
 - Mark instances as `failed`, `stopped`, or `running` based on observed state.
 
 ### Concurrency
 
-- Add host-level locking so two `huginn create` or `huginn destroy` commands cannot race.
+- Add host-level locking so two lifecycle commands cannot race.
 - Add per-instance locking around lifecycle operations.
 - Prevent duplicate TAP names, MACs, runtime sockets, and state directories under concurrent operations.
 - Make state writes transactional enough that interrupted commands cannot leave corrupt JSON.
@@ -520,6 +532,7 @@ Next practical improvements:
 
 - `huginn create` does not run Nix.
 - `huginn create` starts a VM from one prebuilt base artifact.
+- `huginn start` boots a stopped VM from its saved identity and the current base manifest.
 - Guest reads Odin's host `/nix/store` through read-only `virtiofs`.
 - Guest writes to a VM-local `/nix/store` overlay upper layer.
 - Guest gets DHCP on `virbr0`.

@@ -22,6 +22,7 @@ The base manifest is installed at:
 
 ```text
 sudo huginn create [id]
+sudo huginn start <id>
 huginn list
 huginn status <id>
 sudo huginn stop <id>
@@ -33,7 +34,7 @@ Root is required for lifecycle operations because the CLI creates TAP interfaces
 
 ## Lifecycle
 
-`create` does the runtime orchestration:
+`create` does the runtime orchestration for a new VM:
 
 1. Read `/etc/huginn/base-manifest.json`.
 2. Create `/var/lib/huginn/instances/<id>` and `/run/huginn/<id>`.
@@ -43,6 +44,10 @@ Root is required for lifecycle operations because the CLI creates TAP interfaces
 6. Start `cloud-hypervisor` with kernel, initrd, cmdline, TAP, and virtiofs args.
 7. Poll `/var/lib/huginn/dnsmasq.leases` for the VM IP.
 8. Write `/var/lib/prometheus-targets/huginn-<id>.json`.
+
+`start` reuses an existing stopped VM's ID, name, MAC, TAP, metadata, and logs. It refreshes the base manifest from `/etc/huginn/base-manifest.json`, cleans up stale runtime artifacts, then starts the runtime processes again.
+
+`stop` stops the processes, removes the TAP, removes runtime sockets, and keeps persistent instance state.
 
 `destroy` stops the processes, removes the TAP, removes runtime sockets, and removes persistent instance state.
 
