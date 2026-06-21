@@ -18,7 +18,7 @@ in {
     networkmanager.enable = true;
 
     firewall = {
-      interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+      trustedInterfaces = [ "tailscale0" ];
 
       # LAN fallback for Jakob's MacBook. Keep these IPs reserved in DHCP.
       extraCommands = ''
@@ -54,16 +54,23 @@ in {
     openFirewall = true;
   };
 
+  virtualisation.docker.enable = true;
+
   programs.zsh.enable = true;
 
   users.users.${username} = {
     isNormalUser = true;
     description = "Jakob Evangelista";
-    extraGroups = [ "wheel" "networkmanager" ];
+    extraGroups = [ "wheel" "networkmanager" "docker" ];
     shell = pkgs.zsh;
   };
 
-  environment.systemPackages = with pkgs; [ curl git vim wget ];
+  environment.systemPackages = with pkgs; [
+    curl
+    git
+    vim
+    wget
+  ];
 
   # Keep this at the release used for the first install.
   system.stateVersion = "25.05";
