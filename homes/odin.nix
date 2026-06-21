@@ -38,6 +38,7 @@ in {
       codex
       fd
       gcc
+      gh
       go
       ghostty.terminfo
       jq
