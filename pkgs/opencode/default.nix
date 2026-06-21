@@ -4,12 +4,12 @@
 }:
 
 let
-  version = "1.15.12";
+  version = "1.17.9";
   src = fetchFromGitHub {
     owner = "anomalyco";
     repo = "opencode";
     tag = "v${version}";
-    hash = "sha256-ecSZVJ1uyubWcIhp29FS0MA2MCgURN2jo6CFRJ1mm2I=";
+    hash = "sha256-OWfI2dp0PeNShVZMzEdm69EtxWX7UwmyPmX02SfrjP8=";
   };
 in
 opencode.overrideAttrs (old: {
@@ -17,6 +17,6 @@ opencode.overrideAttrs (old: {
 
   node_modules = old.node_modules.overrideAttrs (_: {
     inherit version src;
-    outputHash = "sha256-x5qbmA4/EhEbqyGHAy8VRXw9Do8QYHTRLeZXuyvd4QY=";
+    outputHash = "sha256-ERywlcNEF9EUW3JDGH8987g+GAj76RylUtegqMvStyg=";
   });
 })
