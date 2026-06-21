@@ -1,6 +1,9 @@
 { pkgs, ... }:
 
-let username = "jakob";
+let
+  username = "jakob";
+  macWifiIp = "10.0.0.230";
+  macEthernetIp = "10.0.0.236";
 in {
   imports = [
     ./hardware-configuration.nix
@@ -13,6 +16,22 @@ in {
   networking = {
     hostName = "odin";
     networkmanager.enable = true;
+
+    firewall = {
+      interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+
+      # LAN fallback for Jakob's MacBook. Keep these IPs reserved in DHCP.
+      extraCommands = ''
+        iptables -C nixos-fw -i enp6s0 -p tcp -s ${macWifiIp} --dport 22 -j nixos-fw-accept 2>/dev/null || \
+          iptables -I nixos-fw -i enp6s0 -p tcp -s ${macWifiIp} --dport 22 -j nixos-fw-accept
+        iptables -C nixos-fw -i enp6s0 -p tcp -s ${macEthernetIp} --dport 22 -j nixos-fw-accept 2>/dev/null || \
+          iptables -I nixos-fw -i enp6s0 -p tcp -s ${macEthernetIp} --dport 22 -j nixos-fw-accept
+      '';
+      extraStopCommands = ''
+        iptables -D nixos-fw -i enp6s0 -p tcp -s ${macWifiIp} --dport 22 -j nixos-fw-accept 2>/dev/null || true
+        iptables -D nixos-fw -i enp6s0 -p tcp -s ${macEthernetIp} --dport 22 -j nixos-fw-accept 2>/dev/null || true
+      '';
+    };
   };
 
   time.timeZone = "Etc/UTC";
@@ -24,7 +43,11 @@ in {
     efi.canTouchEfiVariables = true;
   };
 
-  services.openssh.enable = true;
+  services.openssh = {
+    enable = true;
+    openFirewall = false;
+    settings.AllowUsers = [ username ];
+  };
 
   services.tailscale = {
     enable = true;
