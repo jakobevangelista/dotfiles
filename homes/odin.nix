@@ -35,6 +35,7 @@ in {
 
     packages = with pkgs; [
       bat
+      claude-code
       codex
       fd
       gcc
