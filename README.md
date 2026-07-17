@@ -248,6 +248,38 @@ After editing any Odin `.nix` file:
 sudo nixos-rebuild switch --flake ~/dotfiles#odin
 ```
 
+### Updating Odin AI CLI Packages
+
+Claude Code, Codex, and OpenCode are locally pinned for Odin so they can track
+upstream releases without waiting for nixpkgs. To update all three with the
+flake-provided updater app and verify that each changed package builds:
+
+```bash
+nix run .#update-ai-tools
+```
+
+Compatibility wrappers are also available under `scripts/`, so this is
+equivalent:
+
+```bash
+scripts/update-ai-tools.sh
+```
+
+The individual updater apps are available when you need to update or rebuild one
+package:
+
+```bash
+nix run .#update-claude-code -- [latest|VERSION] [--force]
+nix run .#update-codex -- [latest|VERSION] [--force]
+nix run .#update-opencode -- [latest|VERSION] [--force]
+```
+
+After committing/pushing the updated pins, apply them on Odin:
+
+```bash
+sudo nixos-rebuild switch --flake ~/dotfiles#odin
+```
+
 ### Adding a Homebrew package
 
 Add it to `darwin.nix` under `brews` (formulae) or `casks` (GUI apps), then rebuild:

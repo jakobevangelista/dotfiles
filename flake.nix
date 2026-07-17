@@ -19,6 +19,7 @@
       odinUsername = "jakob";
       linuxSystem = "x86_64-linux";
       linuxPkgs = nixpkgs.legacyPackages.${linuxSystem};
+      aiUpdaters = linuxPkgs.callPackage ./pkgs/ai-updaters { };
       localPackagesOverlay = _final: prev: {
         claude-code = prev.callPackage ./pkgs/claude-code { };
         codex = prev.callPackage ./pkgs/codex { };
@@ -28,6 +29,12 @@
       };
     in {
       packages.${linuxSystem} = {
+        inherit (aiUpdaters)
+          update-ai-tools
+          update-claude-code
+          update-codex
+          update-opencode;
+
         huginn = linuxPkgs.callPackage ./pkgs/huginn { };
 
         huginn-base-manifest =
@@ -39,6 +46,19 @@
             cmdline = "console=ttyS0 reboot=t panic=-1 init=${cfg.system.build.toplevel}/init";
           });
       };
+
+      apps.${linuxSystem} =
+        let
+          mkUpdaterApp = name: {
+            type = "app";
+            program = "${self.packages.${linuxSystem}.${name}}/bin/${name}";
+          };
+        in {
+          update-ai-tools = mkUpdaterApp "update-ai-tools";
+          update-claude-code = mkUpdaterApp "update-claude-code";
+          update-codex = mkUpdaterApp "update-codex";
+          update-opencode = mkUpdaterApp "update-opencode";
+        };
 
       darwinConfigurations."jakobs-goated-inngest-macbook" =
         nix-darwin.lib.darwinSystem {
