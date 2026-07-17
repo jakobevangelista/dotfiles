@@ -50,6 +50,7 @@ in {
 
   systemd.network = {
     enable = true;
+    wait-online.enable = false;
 
     netdevs."10-${bridgeName}".netdevConfig = {
       Kind = "bridge";

@@ -280,6 +280,135 @@ let
     '';
   };
 
+  updateGrok = writeShellApplication {
+    name = "update-grok";
+    inherit runtimeInputs;
+    text = ''
+      usage() {
+        cat <<'EOF'
+      Usage: update-grok [latest|VERSION] [--force]
+
+      Updates pkgs/grok/default.nix to the official xAI Grok Linux x64
+      binary and verifies that the resulting Nix package builds.
+
+      Examples:
+        nix run .#update-grok
+        nix run .#update-grok -- latest
+        nix run .#update-grok -- 0.2.102
+      EOF
+      }
+
+      requested_version="''${1:-latest}"
+      force=false
+      base_url_primary="https://x.ai/cli"
+      base_url_fallback="https://storage.googleapis.com/grok-build-public-artifacts/cli"
+      platform="linux-x86_64"
+
+      if [ "''${requested_version}" = "-h" ] || [ "''${requested_version}" = "--help" ]; then
+        usage
+        exit 0
+      fi
+
+      if [ "''${2:-}" = "--force" ]; then
+        force=true
+      elif [ -n "''${2:-}" ]; then
+        usage >&2
+        exit 1
+      fi
+
+      ${repoRootSnippet}
+
+      package_file="''${repo_root}/pkgs/grok/default.nix"
+      flake_attr="path:''${repo_root}#nixosConfigurations.odin.pkgs.grok"
+
+      if [ ! -f "''${package_file}" ]; then
+        echo "Missing package file: ''${package_file}" >&2
+        exit 1
+      fi
+
+      if [ "''${requested_version}" = "latest" ]; then
+        version="$(curl -fsSL "''${base_url_primary}/stable" || curl -fsSL "''${base_url_fallback}/stable")"
+        version="$(printf '%s' "''${version}" | tr -d '\r' | head -n 1 | tr -d '[:space:]')"
+      else
+        version="''${requested_version#v}"
+      fi
+
+      if [ -z "''${version}" ]; then
+        echo "Could not determine Grok version." >&2
+        exit 1
+      fi
+
+      if [[ ! "''${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z._]+)?$ ]]; then
+        echo "Invalid Grok version: ''${version}" >&2
+        exit 1
+      fi
+
+      primary_artifact="''${base_url_primary}/grok-''${version}-''${platform}"
+      fallback_artifact="''${base_url_fallback}/grok-''${version}-''${platform}"
+
+      prefetch_json="$(${nixCommand} store prefetch-file --json "''${primary_artifact}")" \
+        || prefetch_json="$(${nixCommand} store prefetch-file --json "''${fallback_artifact}")" \
+        || {
+          echo "Could not fetch Grok artifact for ''${version}." >&2
+          exit 1
+        }
+
+      hash="$(printf '%s' "''${prefetch_json}" | jq -r '.hash')"
+
+      if [[ ! "''${hash}" =~ ^sha256-[A-Za-z0-9+/=]+$ ]]; then
+        echo "Could not determine Nix hash for Grok ''${version}." >&2
+        exit 1
+      fi
+
+      current_version="$(sed -n 's/^[[:space:]]*version = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
+      current_hash="$(sed -n 's/^[[:space:]]*hash = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
+
+      if [ "''${current_version}" = "''${version}" ] && [ "''${current_hash}" = "''${hash}" ] && [ "''${force}" != true ]; then
+        echo "Grok is already pinned to ''${version}. Use --force to rebuild."
+        exit 0
+      fi
+
+      escape_sed_replacement() {
+        printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
+      }
+
+      escaped_hash="$(escape_sed_replacement "''${hash}")"
+      backup="$(mktemp)"
+      cp "''${package_file}" "''${backup}"
+
+      restore_on_error() {
+        local status=$?
+        if [ "''${status}" -ne 0 ]; then
+          cp "''${backup}" "''${package_file}"
+          echo "Restored ''${package_file} after failed update." >&2
+        fi
+        rm -f "''${backup}"
+        exit "''${status}"
+      }
+      trap restore_on_error EXIT
+
+      sed -i -E 's/^(  version = ")([^"]+)(";)/\1'"''${version}"'\3/' "''${package_file}"
+      sed -i -E 's/^(    hash = ")sha256-[^"]+(";)/\1'"''${escaped_hash}"'\2/' "''${package_file}"
+
+      echo "Building Grok ''${version}..."
+      out_path="$(${nixCommand} build --no-link --print-out-paths "''${flake_attr}")"
+      tmp_home="$(mktemp -d)"
+      actual_version="$(HOME="''${tmp_home}" "''${out_path}/bin/grok" --version)"
+      rm -rf "''${tmp_home}"
+
+      if [[ "''${actual_version}" != *"''${version}"* ]]; then
+        echo "Built Grok reported ''${actual_version}, expected ''${version}." >&2
+        exit 1
+      fi
+
+      trap - EXIT
+      rm -f "''${backup}"
+
+      echo "Updated ''${package_file}"
+      echo "hash: ''${hash}"
+    '';
+  };
+
   updateOpencode = writeShellApplication {
     name = "update-opencode";
     inherit runtimeInputs;
@@ -441,129 +570,6 @@ let
     '';
   };
 
-  updateGrokCli = writeShellApplication {
-    name = "update-grok-cli";
-    inherit runtimeInputs;
-    text = ''
-      usage() {
-        cat <<'EOF'
-      Usage: update-grok-cli [latest|VERSION] [--force]
-
-      Updates pkgs/grok-cli/default.nix to the latest upstream Grok CLI Linux
-      x64 release binary and verifies that the resulting package builds.
-
-      Examples:
-        nix run .#update-grok-cli
-        nix run .#update-grok-cli -- latest
-        nix run .#update-grok-cli -- 1.1.7
-        nix run .#update-grok-cli -- grok-dev@1.1.7
-      EOF
-      }
-
-      requested_version="''${1:-latest}"
-      force=false
-      asset_name="grok-linux-x64"
-
-      if [ "''${requested_version}" = "-h" ] || [ "''${requested_version}" = "--help" ]; then
-        usage
-        exit 0
-      fi
-
-      if [ "''${2:-}" = "--force" ]; then
-        force=true
-      elif [ -n "''${2:-}" ]; then
-        usage >&2
-        exit 1
-      fi
-
-      ${repoRootSnippet}
-
-      package_file="''${repo_root}/pkgs/grok-cli/default.nix"
-      flake_attr="path:''${repo_root}#nixosConfigurations.odin.pkgs.grok-cli"
-
-      if [ ! -f "''${package_file}" ]; then
-        echo "Missing package file: ''${package_file}" >&2
-        exit 1
-      fi
-
-      if [ "''${requested_version}" = "latest" ]; then
-        release_url="https://api.github.com/repos/superagent-ai/grok-cli/releases/latest"
-      else
-        version="''${requested_version#grok-dev@}"
-        version="''${version#v}"
-        release_url="https://api.github.com/repos/superagent-ai/grok-cli/releases/tags/grok-dev@''${version}"
-      fi
-
-      release_json="$(curl -fsSL "''${release_url}")"
-      version="$(printf '%s' "''${release_json}" | jq -r '.tag_name | sub("^grok-dev@"; "")')"
-
-      if [ -z "''${version}" ] || [ "''${version}" = "null" ]; then
-        echo "Could not determine Grok CLI version." >&2
-        exit 1
-      fi
-
-      if [[ ! "''${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
-        echo "Invalid Grok CLI version: ''${version}" >&2
-        exit 1
-      fi
-
-      digest="$(printf '%s' "''${release_json}" \
-        | jq -r --arg name "''${asset_name}" '.assets[] | select(.name == $name) | .digest' \
-        | head -n 1)"
-
-      if [[ ! "''${digest}" =~ ^sha256:[0-9a-fA-F]{64}$ ]]; then
-        echo "Could not find SHA-256 digest for ''${asset_name} in grok-dev@''${version}." >&2
-        exit 1
-      fi
-
-      hash="$(${nixCommand} hash convert --hash-algo sha256 --to sri "''${digest#sha256:}")"
-      current_version="$(sed -n 's/^[[:space:]]*version = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
-      current_hash="$(sed -n 's/^[[:space:]]*hash = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
-
-      if [ "''${current_version}" = "''${version}" ] && [ "''${current_hash}" = "''${hash}" ] && [ "''${force}" != true ]; then
-        echo "Grok CLI is already pinned to ''${version}. Use --force to rebuild."
-        exit 0
-      fi
-
-      escape_sed_replacement() {
-        printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
-      }
-
-      escaped_hash="$(escape_sed_replacement "''${hash}")"
-      backup="$(mktemp)"
-      cp "''${package_file}" "''${backup}"
-
-      restore_on_error() {
-        local status=$?
-        if [ "''${status}" -ne 0 ]; then
-          cp "''${backup}" "''${package_file}"
-          echo "Restored ''${package_file} after failed update." >&2
-        fi
-        rm -f "''${backup}"
-        exit "''${status}"
-      }
-      trap restore_on_error EXIT
-
-      sed -i -E 's/^(  version = ")([^"]+)(";)/\1'"''${version}"'\3/' "''${package_file}"
-      sed -i -E '0,/^(      hash = ")sha256-[^"]+(";)/s//\1'"''${escaped_hash}"'\2/' "''${package_file}"
-
-      echo "Building Grok CLI ''${version}..."
-      out_path="$(${nixCommand} build --no-link --print-out-paths "''${flake_attr}")"
-      actual_version="$("''${out_path}/bin/grok" --version)"
-
-      if [ "''${actual_version}" != "''${version}" ]; then
-        echo "Built Grok CLI reported ''${actual_version}, expected ''${version}." >&2
-        exit 1
-      fi
-
-      trap - EXIT
-      rm -f "''${backup}"
-
-      echo "Updated ''${package_file}"
-      echo "hash: ''${hash}"
-    '';
-  };
-
   updateAiTools = writeShellApplication {
     name = "update-ai-tools";
     runtimeInputs = [ coreutils ];
@@ -578,7 +584,7 @@ let
       Packages:
         - Claude Code
         - Codex
-        - Grok CLI
+        - Grok
         - OpenCode
       EOF
       }
@@ -601,8 +607,8 @@ let
       echo "==> update-codex"
       "${updateCodex}/bin/update-codex" latest "''${force_arg[@]}"
 
-      echo "==> update-grok-cli"
-      "${updateGrokCli}/bin/update-grok-cli" latest "''${force_arg[@]}"
+      echo "==> update-grok"
+      "${updateGrok}/bin/update-grok" latest "''${force_arg[@]}"
 
       echo "==> update-opencode"
       "${updateOpencode}/bin/update-opencode" latest "''${force_arg[@]}"
@@ -613,6 +619,6 @@ in
   "update-ai-tools" = updateAiTools;
   "update-claude-code" = updateClaudeCode;
   "update-codex" = updateCodex;
-  "update-grok-cli" = updateGrokCli;
+  "update-grok" = updateGrok;
   "update-opencode" = updateOpencode;
 }

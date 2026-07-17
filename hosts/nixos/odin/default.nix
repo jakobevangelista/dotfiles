@@ -68,7 +68,9 @@ in {
   environment.systemPackages = with pkgs; [
     curl
     git
-    grok-cli
+    gnumake
+    grok
+    openssl
     vim
     wget
   ];
