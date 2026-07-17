@@ -23,6 +23,7 @@
       localPackagesOverlay = _final: prev: {
         claude-code = prev.callPackage ./pkgs/claude-code { };
         codex = prev.callPackage ./pkgs/codex { };
+        grok-cli = prev.callPackage ./pkgs/grok-cli { };
         opencode = prev.callPackage ./pkgs/opencode {
           opencode = prev.opencode;
         };
@@ -33,6 +34,7 @@
           update-ai-tools
           update-claude-code
           update-codex
+          update-grok-cli
           update-opencode;
 
         huginn = linuxPkgs.callPackage ./pkgs/huginn { };
@@ -57,6 +59,7 @@
           update-ai-tools = mkUpdaterApp "update-ai-tools";
           update-claude-code = mkUpdaterApp "update-claude-code";
           update-codex = mkUpdaterApp "update-codex";
+          update-grok-cli = mkUpdaterApp "update-grok-cli";
           update-opencode = mkUpdaterApp "update-opencode";
         };
 

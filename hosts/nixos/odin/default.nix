@@ -68,6 +68,7 @@ in {
   environment.systemPackages = with pkgs; [
     curl
     git
+    grok-cli
     vim
     wget
   ];

@@ -250,8 +250,8 @@ sudo nixos-rebuild switch --flake ~/dotfiles#odin
 
 ### Updating Odin AI CLI Packages
 
-Claude Code, Codex, and OpenCode are locally pinned for Odin so they can track
-upstream releases without waiting for nixpkgs. To update all three with the
+Claude Code, Codex, Grok CLI, and OpenCode are locally pinned for Odin so they
+can track upstream releases without waiting for nixpkgs. To update all four with the
 flake-provided updater app and verify that each changed package builds:
 
 ```bash
@@ -271,6 +271,7 @@ package:
 ```bash
 nix run .#update-claude-code -- [latest|VERSION] [--force]
 nix run .#update-codex -- [latest|VERSION] [--force]
+nix run .#update-grok-cli -- [latest|VERSION] [--force]
 nix run .#update-opencode -- [latest|VERSION] [--force]
 ```
 
