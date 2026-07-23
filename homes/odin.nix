@@ -43,6 +43,7 @@ in {
       ghostty.terminfo
       jq
       neovim
+      ngrok
       opencode
       ripgrep
       tmux
