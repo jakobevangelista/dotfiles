@@ -21,6 +21,7 @@
       linuxPkgs = nixpkgs.legacyPackages.${linuxSystem};
       aiUpdaters = linuxPkgs.callPackage ./pkgs/ai-updaters { };
       localPackagesOverlay = _final: prev: {
+        amp-cli = prev.callPackage ./pkgs/amp-cli { };
         claude-code = prev.callPackage ./pkgs/claude-code { };
         codex = prev.callPackage ./pkgs/codex { };
         grok = prev.callPackage ./pkgs/grok { };
@@ -32,6 +33,7 @@
       packages.${linuxSystem} = {
         inherit (aiUpdaters)
           update-ai-tools
+          update-amp
           update-claude-code
           update-codex
           update-grok
@@ -57,6 +59,7 @@
           };
         in {
           update-ai-tools = mkUpdaterApp "update-ai-tools";
+          update-amp = mkUpdaterApp "update-amp";
           update-claude-code = mkUpdaterApp "update-claude-code";
           update-codex = mkUpdaterApp "update-codex";
           update-grok = mkUpdaterApp "update-grok";

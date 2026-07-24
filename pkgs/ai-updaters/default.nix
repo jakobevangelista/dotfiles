@@ -29,6 +29,122 @@ let
 
   nixCommand = "nix --extra-experimental-features 'nix-command flakes'";
 
+  updateAmp = writeShellApplication {
+    name = "update-amp";
+    inherit runtimeInputs;
+    text = ''
+      usage() {
+        cat <<'EOF'
+      Usage: update-amp [latest|VERSION] [--force]
+
+      Updates pkgs/amp-cli/default.nix to the official Amp Linux x64 binary
+      and verifies that the resulting Nix package builds.
+
+      Examples:
+        nix run .#update-amp
+        nix run .#update-amp -- latest
+        nix run .#update-amp -- 0.0.1785775571-g90a48e
+      EOF
+      }
+
+      requested_version="''${1:-latest}"
+      force=false
+      base_url="https://static.ampcode.com/cli"
+      platform="linux-x64"
+
+      if [ "''${requested_version}" = "-h" ] || [ "''${requested_version}" = "--help" ]; then
+        usage
+        exit 0
+      fi
+
+      if [ "''${2:-}" = "--force" ]; then
+        force=true
+      elif [ -n "''${2:-}" ]; then
+        usage >&2
+        exit 1
+      fi
+
+      ${repoRootSnippet}
+
+      package_file="''${repo_root}/pkgs/amp-cli/default.nix"
+      flake_attr="path:''${repo_root}#nixosConfigurations.odin.pkgs.amp-cli"
+
+      if [ ! -f "''${package_file}" ]; then
+        echo "Missing package file: ''${package_file}" >&2
+        exit 1
+      fi
+
+      if [ "''${requested_version}" = "latest" ]; then
+        version="$(curl -fsSL "''${base_url}/cli-version.txt")"
+        version="$(printf '%s' "''${version}" | tr -d '\r' | head -n 1 | tr -d '[:space:]')"
+      else
+        version="''${requested_version#v}"
+      fi
+
+      if [[ ! "''${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-g[0-9a-fA-F]+$ ]]; then
+        echo "Invalid Amp version: ''${version}" >&2
+        exit 1
+      fi
+
+      checksum="$(curl -fsSL "''${base_url}/''${version}/''${platform}-amp.sha256")"
+      checksum="$(printf '%s' "''${checksum}" | tr -d '[:space:]')"
+
+      if [[ ! "''${checksum}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+        echo "Could not determine the Linux x64 checksum for Amp ''${version}." >&2
+        exit 1
+      fi
+
+      hash="$(${nixCommand} hash convert --hash-algo sha256 --to sri "''${checksum}")"
+      current_version="$(sed -n 's/^[[:space:]]*version = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
+      current_hash="$(sed -n 's/^[[:space:]]*hash = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
+
+      if [ "''${current_version}" = "''${version}" ] && [ "''${current_hash}" = "''${hash}" ] && [ "''${force}" != true ]; then
+        echo "Amp is already pinned to ''${version}. Use --force to rebuild."
+        exit 0
+      fi
+
+      escape_sed_replacement() {
+        printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
+      }
+
+      escaped_hash="$(escape_sed_replacement "''${hash}")"
+      backup="$(mktemp)"
+      cp "''${package_file}" "''${backup}"
+
+      restore_on_error() {
+        local status=$?
+        if [ "''${status}" -ne 0 ]; then
+          cp "''${backup}" "''${package_file}"
+          echo "Restored ''${package_file} after failed update." >&2
+        fi
+        rm -f "''${backup}"
+        exit "''${status}"
+      }
+      trap restore_on_error EXIT
+
+      sed -i -E 's/^(  version = ")([^"]+)(";)/\1'"''${version}"'\3/' "''${package_file}"
+      sed -i -E 's/^(    hash = ")sha256-[^"]+(";)/\1'"''${escaped_hash}"'\2/' "''${package_file}"
+
+      echo "Building Amp ''${version}..."
+      out_path="$(${nixCommand} build --no-link --print-out-paths "''${flake_attr}")"
+      tmp_home="$(mktemp -d)"
+      actual_version="$(HOME="''${tmp_home}" AMP_SKIP_UPDATE_CHECK=1 "''${out_path}/bin/amp" --version)"
+      rm -rf "''${tmp_home}"
+
+      if [[ "''${actual_version}" != *"''${version}"* ]]; then
+        echo "Built Amp reported ''${actual_version}, expected ''${version}." >&2
+        exit 1
+      fi
+
+      trap - EXIT
+      rm -f "''${backup}"
+
+      echo "Updated ''${package_file}"
+      echo "checksum: ''${checksum}"
+      echo "hash: ''${hash}"
+    '';
+  };
+
   updateClaudeCode = writeShellApplication {
     name = "update-claude-code";
     inherit runtimeInputs;
@@ -582,6 +698,7 @@ let
       releases and verifies each changed package builds.
 
       Packages:
+        - Amp
         - Claude Code
         - Codex
         - Grok
@@ -601,6 +718,9 @@ let
         exit 1
       fi
 
+      echo "==> update-amp"
+      "${updateAmp}/bin/update-amp" latest "''${force_arg[@]}"
+
       echo "==> update-claude-code"
       "${updateClaudeCode}/bin/update-claude-code" latest "''${force_arg[@]}"
 
@@ -617,6 +737,7 @@ let
 in
 {
   "update-ai-tools" = updateAiTools;
+  "update-amp" = updateAmp;
   "update-claude-code" = updateClaudeCode;
   "update-codex" = updateCodex;
   "update-grok" = updateGrok;
