@@ -146,6 +146,8 @@ in {
         backupSdCard = "~/dotfiles/scripts/backup_sd_videos.sh";
         ingestFootage = "~/dotfiles/scripts/ingest_footage.sh";
         backupProject = "~/dotfiles/scripts/backup_project.sh";
+        backupVideoProjects = "~/dotfiles/scripts/backup_video_projects.sh";
+        backupVideoProjectsFull = "~/dotfiles/scripts/backup_video_projects_full.sh";
         restoreProjectMedia = "~/dotfiles/scripts/restore_project_media.sh";
         md = "mkdir -p";
         "..." = "cd ../..";

@@ -77,12 +77,14 @@ Arguments:
 
 Options:
   -n, --dry-run    Show what would be copied without making changes
+  --camera NAME    Camera destination folder (default: $CAMERA_FOLDER)
   -h, --help       Show this help message
 
 Examples:
   $SCRIPT_NAME                     # Backup from SD card
   $SCRIPT_NAME --dry-run           # Preview SD card backup
   $SCRIPT_NAME /path/to/videos     # Backup from custom path
+  $SCRIPT_NAME --camera gopro /path/to/videos
   $SCRIPT_NAME -n /path/to/videos  # Preview custom path backup
 
 Configuration (edit at top of script):
@@ -544,6 +546,12 @@ main() {
             -n|--dry-run)
                 DRY_RUN=true
                 shift
+                ;;
+            --camera)
+                [[ $# -ge 2 ]] || { log_error "--camera requires a value"; exit 1; }
+                [[ "$2" != */* ]] || { log_error "--camera must be a folder name"; exit 1; }
+                CAMERA_FOLDER="$2"
+                shift 2
                 ;;
             -h|--help)
                 show_help

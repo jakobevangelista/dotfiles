@@ -30,6 +30,9 @@ backupSdCard --dry-run
 # Backup from a custom directory (recursive search)
 backupSdCard /path/to/videos
 
+# Back up a non-Sony camera into its own camera folder
+backupSdCard --camera gopro /Volumes/Untitled/DCIM/100GOPRO
+
 # Preview custom directory backup
 backupSdCard -n /path/to/videos
 ```
@@ -45,6 +48,7 @@ backup_sd_videos.sh [OPTIONS] [SOURCE_PATH]
 
 **Options:**
 - `-n, --dry-run` - Show what would be copied without making changes
+- `--camera NAME` - Camera destination folder (default: `zve1`)
 - `-h, --help` - Show help message
 
 ### Configuration
@@ -230,14 +234,17 @@ source ~/.zshrc
 
 ## Local Edit / NAS Archive Workflow
 
-Use this newer workflow for active edits:
+Use this workflow for active edits and future no-duplicate backups:
 
 ```bash
 mkproj
 ingestFootage /Volumes/Untitled ~/Documents/videos/2026-04-26_project_name
 backupProject ~/Documents/videos/2026-04-26_project_name
+backupVideoProjects
 restoreProjectMedia ~/Documents/videos/2026-04-26_project_name
 ```
+
+`backupVideoProjectsFull` is not part of the normal future workflow. It is only for one-time full safety snapshots before trusting the clean `CameraBackup` + `ProjectBackups` flow.
 
 ### ingest_footage.sh
 
@@ -281,6 +288,38 @@ Examples:
 backupProject ~/Documents/videos/2026-04-26_first_short
 backupProject --dry-run ~/Documents/videos/2026-04-26_first_short
 ```
+
+### backup_video_projects.sh
+
+Backs up every top-level dated project folder under `~/Documents/videos` by running `backupProject` for each folder matching `YYYY-MM-DD_*`.
+
+This is the command to use for regular no-duplicate project backups:
+
+```bash
+backupVideoProjects
+backupVideoProjects --dry-run
+```
+
+It intentionally skips non-project folders/files such as `assets`, `newyork`, `disney6`, loose `.prproj` files, and loose exports. Raw `footage/` folders are excluded by `backupProject` so camera originals are not duplicated in `ProjectBackups`.
+
+### backup_video_projects_full.sh
+
+Creates a one-time safety backup of every top-level dated project folder under `~/Documents/videos`, including `footage/`.
+
+Use this before switching fully to the no-duplicate ingest/archive workflow:
+
+```bash
+backupVideoProjectsFull --dry-run
+backupVideoProjectsFull
+```
+
+It writes to:
+
+```text
+/Volumes/plusEvMediaBackup/FullProjectBackups/YYYY-MM-DD/
+```
+
+This intentionally stays separate from `ProjectBackups/` so future clean project backups can exclude `footage/` without leaving old raw-media duplicates in the clean backup area.
 
 ### restore_project_media.sh
 
