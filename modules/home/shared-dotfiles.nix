@@ -1,5 +1,11 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
+let
+  goimports = pkgs.runCommand "goimports-${pkgs.gotools.version}" { } ''
+    mkdir -p "$out/bin"
+    ln -s "${pkgs.gotools}/bin/goimports" "$out/bin/goimports"
+  '';
+in
 {
   programs.jujutsu = {
     enable = true;
@@ -9,17 +15,20 @@
     };
   };
 
-  home.packages = with pkgs; [
-    eslint_d
-    gopls
-    lua-language-server
-    marksman
-    markdownlint-cli
-    prettierd
-    pyright
-    stylua
-    typescript-language-server
-  ];
+  home.packages = with pkgs;
+    [
+      eslint_d
+      gopls
+      goimports
+      lua-language-server
+      marksman
+      markdownlint-cli
+      prettierd
+      pyright
+      stylua
+      typescript-language-server
+    ]
+    ++ lib.optionals stdenv.isLinux [ golangci-lint ];
 
   home.file = {
     ".config/nvim".source = ../../.config/nvim;

@@ -79,6 +79,20 @@ vim.opt.shiftwidth = 2 -- Size of an indent
 vim.opt.tabstop = 2 -- Number of spaces tabs count for
 vim.opt.softtabstop = 2 -- Number of spaces that a <Tab> counts for
 
+-- Go uses real tabs on disk. Keep them gofmt-compatible while rendering each
+-- indentation level as a single column.
+vim.api.nvim_create_autocmd('FileType', {
+  desc = 'Use compact visual indentation for Go',
+  group = vim.api.nvim_create_augroup('go-indentation', { clear = true }),
+  pattern = { 'go', 'gomod', 'gowork' },
+  callback = function(event)
+    vim.bo[event.buf].expandtab = false
+    vim.bo[event.buf].tabstop = 1
+    vim.bo[event.buf].shiftwidth = 1
+    vim.bo[event.buf].softtabstop = 1
+  end,
+})
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
@@ -179,8 +193,6 @@ vim.opt.rtp:prepend(lazypath)
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
-  'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
-
   -- NOTE: The import below can automatically add plugins, configuration, etc from `lua/custom/plugins/*.lua`
   -- { import = 'custom.plugins' },
 
@@ -573,7 +585,13 @@ require('lazy').setup({
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
         -- clangd = {},
-        gopls = {},
+        gopls = {
+          settings = {
+            gopls = {
+              usePlaceholders = true,
+            },
+          },
+        },
         pyright = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
@@ -614,6 +632,16 @@ require('lazy').setup({
 
   { -- Autoformat
     'stevearc/conform.nvim',
+    keys = {
+      {
+        '<leader>cf',
+        function()
+          require('conform').format { async = true, lsp_format = 'fallback' }
+        end,
+        mode = { 'n', 'v' },
+        desc = '[C]ode [F]ormat',
+      },
+    },
     opts = {
       notify_on_error = false,
       format_on_save = function(bufnr)
@@ -622,11 +650,12 @@ require('lazy').setup({
         -- languages here or re-enable it for the disabled ones.
         local disable_filetypes = { c = true, cpp = true }
         return {
-          timeout_ms = 500,
-          lsp_fallback = not disable_filetypes[vim.bo[bufnr].filetype],
+          timeout_ms = 2000,
+          lsp_format = disable_filetypes[vim.bo[bufnr].filetype] and 'never' or 'fallback',
         }
       end,
       formatters_by_ft = {
+        go = { 'goimports', 'gofmt' },
         lua = { 'stylua' },
         javascript = { 'prettierd' },
         typescript = { 'prettierd' },
@@ -800,7 +829,7 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
-  
+
   -- Animated indent guides like LazyVim
   {
     'echasnovski/mini.indentscope',
@@ -834,10 +863,31 @@ require('lazy').setup({
     lazy = false,
     build = ':TSUpdate',
     opts = {
-      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'typescript', 'javascript', 'markdown_inline', 'tsx' },
+      ensure_installed = {
+        'bash',
+        'c',
+        'go',
+        'gomod',
+        'gosum',
+        'gowork',
+        'html',
+        'javascript',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'tsx',
+        'typescript',
+        'vim',
+        'vimdoc',
+      },
       filetypes = {
         bash = 'bash',
         c = 'c',
+        go = 'go',
+        gomod = 'gomod',
+        gosum = 'gosum',
+        gowork = 'gowork',
         help = 'vimdoc',
         html = 'html',
         javascript = 'javascript',

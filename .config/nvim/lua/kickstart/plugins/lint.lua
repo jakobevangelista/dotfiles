@@ -1,5 +1,4 @@
 return {
-
   { -- Linting
     'mfussenegger/nvim-lint',
     event = { 'BufReadPre', 'BufNewFile' },
@@ -18,44 +17,33 @@ return {
         lint.linters_by_ft.markdown = { 'markdownlint' }
       end
 
-      -- To allow other plugins to add linters to require('lint').linters_by_ft,
-      -- instead set linters_by_ft like this:
-      -- lint.linters_by_ft = lint.linters_by_ft or {}
-      -- lint.linters_by_ft['markdown'] = { 'markdownlint' }
-      --
-      -- However, note that this will enable a set of default linters,
-      -- which will cause errors unless these tools are available:
-      -- {
-      --   clojure = { "clj-kondo" },
-      --   dockerfile = { "hadolint" },
-      --   inko = { "inko" },
-      --   janet = { "janet" },
-      --   json = { "jsonlint" },
-      --   markdown = { "vale" },
-      --   rst = { "vale" },
-      --   ruby = { "ruby" },
-      --   terraform = { "tflint" },
-      --   text = { "vale" }
-      -- }
-      --
-      -- You can disable the default linters by setting their filetypes to nil:
-      -- lint.linters_by_ft['clojure'] = nil
-      -- lint.linters_by_ft['dockerfile'] = nil
-      -- lint.linters_by_ft['inko'] = nil
-      -- lint.linters_by_ft['janet'] = nil
-      -- lint.linters_by_ft['json'] = nil
-      -- lint.linters_by_ft['markdown'] = nil
-      -- lint.linters_by_ft['rst'] = nil
-      -- lint.linters_by_ft['ruby'] = nil
-      -- lint.linters_by_ft['terraform'] = nil
-      -- lint.linters_by_ft['text'] = nil
-      -- Create autocommand which carries out the actual linting
-      -- on the specified events.
+      if vim.fn.executable 'golangci-lint' == 1 then
+        lint.linters_by_ft.go = { 'golangcilint' }
+
+        -- nvim-lint's bundled arguments still target golangci-lint v1.
+        -- Override them with the v2 JSON output flags expected by the parser.
+        lint.linters.golangcilint.args = {
+          'run',
+          '--output.json.path=stdout',
+          '--issues-exit-code=0',
+          '--show-stats=false',
+          '.',
+        }
+      end
+
       local lint_augroup = vim.api.nvim_create_augroup('lint', { clear = true })
-      vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
+      vim.api.nvim_create_autocmd('BufWritePost', {
+        desc = 'Lint the saved buffer',
         group = lint_augroup,
-        callback = function()
-          require("lint").try_lint()
+        callback = function(event)
+          if vim.bo[event.buf].filetype ~= 'go' then
+            lint.try_lint()
+            return
+          end
+
+          local filename = vim.api.nvim_buf_get_name(event.buf)
+          local cwd = vim.fs.root(filename, { 'go.work', 'go.mod', '.git' }) or vim.fs.dirname(filename)
+          lint.try_lint(nil, { cwd = cwd })
         end,
       })
     end,
