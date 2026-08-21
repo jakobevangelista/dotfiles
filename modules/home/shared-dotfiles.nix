@@ -26,6 +26,24 @@
     ".config/tmux".source = ../../.config/tmux;
     ".config/starship.toml".source = ../../.config/starship.toml;
 
+    ".config/agents/skills" = {
+      source = ../../.config/agents/skills;
+      force = true;
+    };
+
+    ".codex/skills/testing-simcity-e2e" = {
+      source = ../../.config/agents/skills/testing-simcity-e2e;
+      force = true;
+    };
+    ".codex/skills/testing-simcity-staging-e2e" = {
+      source = ../../.config/agents/skills/testing-simcity-staging-e2e;
+      force = true;
+    };
+    ".codex/skills/testing-simcity-production-e2e" = {
+      source = ../../.config/agents/skills/testing-simcity-production-e2e;
+      force = true;
+    };
+
     ".config/opencode/opencode.jsonc" = {
       source = ../../.config/opencode/opencode.jsonc;
       force = true;
