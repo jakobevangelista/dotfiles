@@ -23,17 +23,17 @@ let
     server=1.1.1.1
     server=8.8.8.8
   '';
-in {
+in
+{
   environment.systemPackages = [ dotfilesPackages.huginn ];
-  environment.etc."huginn/base-manifest.json".source =
-    dotfilesPackages.huginn-base-manifest;
+  environment.etc."huginn/base-manifest.json".source = dotfilesPackages.huginn-base-manifest;
 
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
 
   networking = {
     nat = {
       enable = true;
-      externalInterface = "enp1s0";
+      externalInterface = "enp6s0";
       internalInterfaces = [ bridgeName ];
     };
 
@@ -43,7 +43,10 @@ in {
     ];
 
     firewall.interfaces.${bridgeName} = {
-      allowedUDPPorts = [ 53 67 ];
+      allowedUDPPorts = [
+        53
+        67
+      ];
       allowedTCPPorts = [ 53 ];
     };
   };
@@ -59,7 +62,7 @@ in {
 
     networks."10-${bridgeName}" = {
       matchConfig.Name = bridgeName;
-      addresses = [{ Address = "${bridgeAddress}/24"; }];
+      addresses = [ { Address = "${bridgeAddress}/24"; } ];
       networkConfig = {
         ConfigureWithoutCarrier = true;
         IPv4Forwarding = true;
@@ -91,8 +94,7 @@ in {
     ];
     serviceConfig = {
       ExecStartPre = "${pkgs.runtimeShell} -c 'for i in $(${pkgs.coreutils}/bin/seq 1 30); do ${pkgs.iproute2}/bin/ip -4 addr show dev ${bridgeName} | ${pkgs.gnugrep}/bin/grep -q ${bridgeAddress}/24 && exit 0; ${pkgs.coreutils}/bin/sleep 1; done; exit 1'";
-      ExecStart =
-        "${pkgs.dnsmasq}/bin/dnsmasq --keep-in-foreground --conf-file=${dnsmasqConfig}";
+      ExecStart = "${pkgs.dnsmasq}/bin/dnsmasq --keep-in-foreground --conf-file=${dnsmasqConfig}";
       Restart = "on-failure";
       RestartSec = "2s";
     };
