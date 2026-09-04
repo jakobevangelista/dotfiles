@@ -9,11 +9,11 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "amp-cli";
-  version = "0.0.1787328285-g05ea44";
+  version = "0.0.1788436865-g512c6e";
 
   src = fetchurl {
     url = "https://static.ampcode.com/cli/${finalAttrs.version}/amp-linux-x64";
-    hash = "sha256-s+hgnqTAkiaNyhqT6gwF0szRZE7f9U1rHvg1/8scaic=";
+    hash = "sha256-qTiNq64H26gCo0zzQYq5VjJy/9Xbtg4nXzM94nRqNkU=";
   };
 
   nativeBuildInputs = [
