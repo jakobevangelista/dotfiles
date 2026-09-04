@@ -43,6 +43,10 @@
       source = ../../.config/agents/skills/testing-simcity-production-e2e;
       force = true;
     };
+    ".codex/skills/testing-monorepo-local-e2e" = {
+      source = ../../.config/agents/skills/testing-monorepo-local-e2e;
+      force = true;
+    };
 
     ".config/opencode/opencode.jsonc" = {
       source = ../../.config/opencode/opencode.jsonc;

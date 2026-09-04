@@ -1,0 +1,4 @@
+interface:
+  display_name: "Monorepo Local E2E"
+  short_description: "Run local monorepo and SDK app E2Es"
+  default_prompt: "Use $testing-monorepo-local-e2e to start the local monorepo stack and an Inngest app for an end-to-end test."
