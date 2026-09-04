@@ -533,20 +533,21 @@ let
         cat <<'EOF'
       Usage: update-opencode [latest|VERSION] [--force]
 
-      Updates pkgs/opencode/default.nix to an upstream OpenCode release and lets
-      Nix calculate the source and node_modules hashes.
+      Updates pkgs/opencode/default.nix to the official upstream OpenCode
+      prebuilt Linux x64 binary and verifies that the resulting Nix package
+      builds.
 
       Examples:
         nix run .#update-opencode
         nix run .#update-opencode -- latest
-        nix run .#update-opencode -- 1.15.13
-        nix run .#update-opencode -- v1.15.13
+        nix run .#update-opencode -- 1.18.27
+        nix run .#update-opencode -- v1.18.27
       EOF
       }
 
       requested_version="''${1:-latest}"
       force=false
-      fake_hash="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+      asset_name="opencode-linux-x64.tar.gz"
 
       if [ "''${requested_version}" = "-h" ] || [ "''${requested_version}" = "--help" ]; then
         usage
@@ -587,10 +588,26 @@ let
         exit 1
       fi
 
-      current_version="$(sed -n 's/^[[:space:]]*version = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
+      artifact="https://github.com/anomalyco/opencode/releases/download/v''${version}/''${asset_name}"
 
-      if [ "''${current_version}" = "''${version}" ] && [ "''${force}" != true ]; then
-        echo "OpenCode is already pinned to ''${version}. Use --force to refresh hashes."
+      prefetch_json="$(${nixCommand} store prefetch-file --json "''${artifact}")" \
+        || {
+          echo "Could not fetch OpenCode artifact for ''${version}." >&2
+          exit 1
+        }
+
+      hash="$(printf '%s' "''${prefetch_json}" | jq -r '.hash')"
+
+      if [[ ! "''${hash}" =~ ^sha256-[A-Za-z0-9+/=]+$ ]]; then
+        echo "Could not determine Nix hash for OpenCode ''${version}." >&2
+        exit 1
+      fi
+
+      current_version="$(sed -n 's/^[[:space:]]*version = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
+      current_hash="$(sed -n 's/^[[:space:]]*hash = "\([^"]*\)";/\1/p' "''${package_file}" | head -n 1)"
+
+      if [ "''${current_version}" = "''${version}" ] && [ "''${current_hash}" = "''${hash}" ] && [ "''${force}" != true ]; then
+        echo "OpenCode is already pinned to ''${version}. Use --force to rebuild."
         exit 0
       fi
 
@@ -598,49 +615,7 @@ let
         printf '%s' "$1" | sed -e 's/[\/&]/\\&/g'
       }
 
-      replace_version() {
-        sed -i -E 's/^(  version = ")([^"]+)(";)/\1'"''${version}"'\3/' "''${package_file}"
-      }
-
-      replace_source_hash() {
-        local escaped_hash
-        escaped_hash="$(escape_sed_replacement "$1")"
-        sed -i -E '0,/^(    hash = ")sha256-[^"]+(";)/s//\1'"''${escaped_hash}"'\2/' "''${package_file}"
-      }
-
-      replace_node_modules_hash() {
-        local escaped_hash
-        escaped_hash="$(escape_sed_replacement "$1")"
-        sed -i -E 's/^(    outputHash = ")sha256-[^"]+(";)/\1'"''${escaped_hash}"'\2/' "''${package_file}"
-      }
-
-      hash_from_failed_build() {
-        local output status hash
-
-        set +e
-        output="$(${nixCommand} build --no-link "''${flake_attr}" 2>&1)"
-        status=$?
-        set -e
-
-        printf '%s\n' "''${output}" >&2
-
-        if [ "''${status}" -eq 0 ]; then
-          echo "Expected a Nix hash mismatch, but the build succeeded." >&2
-          return 1
-        fi
-
-        hash="$(printf '%s\n' "''${output}" \
-          | sed -n 's/^[[:space:]]*got:[[:space:]]*\(sha256-[A-Za-z0-9+\/=]*\)$/\1/p' \
-          | tail -n 1)"
-
-        if [ -z "''${hash}" ]; then
-          echo "Could not find a Nix hash mismatch in the build output." >&2
-          return 1
-        fi
-
-        printf '%s\n' "''${hash}"
-      }
-
+      escaped_hash="$(escape_sed_replacement "''${hash}")"
       backup="$(mktemp)"
       cp "''${package_file}" "''${backup}"
 
@@ -655,25 +630,17 @@ let
       }
       trap restore_on_error EXIT
 
-      echo "Updating OpenCode to ''${version}"
-      replace_version
-
-      echo "Calculating source hash..."
-      replace_source_hash "''${fake_hash}"
-      source_hash="$(hash_from_failed_build)"
-      replace_source_hash "''${source_hash}"
-
-      echo "Calculating node_modules hash..."
-      replace_node_modules_hash "''${fake_hash}"
-      node_modules_hash="$(hash_from_failed_build)"
-      replace_node_modules_hash "''${node_modules_hash}"
+      sed -i -E 's/^(  version = ")([^"]+)(";)/\1'"''${version}"'\3/' "''${package_file}"
+      sed -i -E 's/^(    hash = ")sha256-[^"]+(";)/\1'"''${escaped_hash}"'\2/' "''${package_file}"
 
       echo "Building OpenCode ''${version}..."
       out_path="$(${nixCommand} build --no-link --print-out-paths "''${flake_attr}")"
-      actual_version="$("''${out_path}/bin/opencode" --version)"
+      tmp_home="$(mktemp -d)"
+      actual_version="$(HOME="''${tmp_home}" "''${out_path}/bin/opencode" --version)"
+      rm -rf "''${tmp_home}"
 
-      if [ "''${actual_version}" != "''${version}" ]; then
-        echo "Built OpenCode ''${actual_version}, expected ''${version}." >&2
+      if [[ "''${actual_version}" != *"''${version}"* ]]; then
+        echo "Built OpenCode reported ''${actual_version}, expected ''${version}." >&2
         exit 1
       fi
 
@@ -681,8 +648,7 @@ let
       rm -f "''${backup}"
 
       echo "Updated ''${package_file}"
-      echo "source hash: ''${source_hash}"
-      echo "node_modules hash: ''${node_modules_hash}"
+      echo "hash: ''${hash}"
     '';
   };
 

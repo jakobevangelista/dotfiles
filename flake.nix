@@ -25,9 +25,7 @@
         claude-code = prev.callPackage ./pkgs/claude-code { };
         codex = prev.callPackage ./pkgs/codex { };
         grok = prev.callPackage ./pkgs/grok { };
-        opencode = prev.callPackage ./pkgs/opencode {
-          opencode = prev.opencode;
-        };
+        opencode = prev.callPackage ./pkgs/opencode { };
       };
     in {
       packages.${linuxSystem} = {
