@@ -56,6 +56,8 @@
 
         huginn = linuxPkgs.callPackage ./pkgs/huginn { };
 
+        muninn = linuxPkgs.callPackage ./pkgs/muninn { };
+
         huginn-base-manifest =
           let cfg = self.nixosConfigurations.huginn-base.config;
           in linuxPkgs.writeText "huginn-base-manifest.json" (builtins.toJSON {
@@ -64,6 +66,23 @@
             system = "${cfg.system.build.toplevel}";
             cmdline = "console=ttyS0 reboot=t panic=-1 init=${cfg.system.build.toplevel}/init";
           });
+
+        muninn-manifest =
+          let
+            cfg = self.nixosConfigurations.muninn.config;
+            closureInfo = linuxPkgs.closureInfo {
+              rootPaths = [ cfg.system.build.toplevel ];
+            };
+          in
+          linuxPkgs.writeText "muninn-manifest.json" (
+            builtins.toJSON {
+              kernel = "${cfg.system.build.kernel}/${cfg.system.boot.loader.kernelFile}";
+              initrd = "${cfg.system.build.initialRamdisk}/${cfg.system.boot.loader.initrdFile}";
+              system = "${cfg.system.build.toplevel}";
+              registration = "${closureInfo}/registration";
+              cmdline = "console=ttyS0 reboot=t panic=-1 init=${cfg.system.build.toplevel}/init muninn.registration=${closureInfo}/registration";
+            }
+          );
       };
 
       apps.${linuxSystem} =
@@ -94,6 +113,20 @@
       nixosConfigurations."huginn-base" = nixpkgs.lib.nixosSystem {
         system = linuxSystem;
         modules = [ ./hosts/huginn-base ];
+      };
+
+      nixosConfigurations."muninn" = nixpkgs.lib.nixosSystem {
+        system = linuxSystem;
+        modules = [
+          ./hosts/muninn
+          home-manager.nixosModules.home-manager
+          { nixpkgs.overlays = [ localPackagesOverlay ]; }
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.users.${odinUsername} = import ./homes/muninn.nix;
+          }
+        ];
       };
 
       nixosConfigurations."odin" = nixpkgs.lib.nixosSystem {

@@ -56,6 +56,10 @@ in
       source = ../../.config/agents/skills/testing-monorepo-local-e2e;
       force = true;
     };
+    ".codex/skills/using-muninn" = {
+      source = ../../.config/agents/skills/using-muninn;
+      force = true;
+    };
 
     ".config/opencode/opencode.jsonc" = {
       source = ../../.config/opencode/opencode.jsonc;

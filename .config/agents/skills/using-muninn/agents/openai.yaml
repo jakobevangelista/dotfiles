@@ -1,0 +1,5 @@
+interface:
+  display_name: "Use Muninn Workstation"
+  short_description: "Operate Odin's persistent Muninn workstation"
+  default_prompt: "Use $using-muninn to start, inspect, and connect to the Muninn workstation safely."
+

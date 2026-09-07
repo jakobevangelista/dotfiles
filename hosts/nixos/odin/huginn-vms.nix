@@ -15,6 +15,7 @@ let
     dhcp-leasefile=${stateDir}/dnsmasq.leases
     dhcp-option=option:router,${bridgeAddress}
     dhcp-option=option:dns-server,${bridgeAddress}
+    host-record=muninn,muninn.huginn,10.88.0.10
     domain=huginn
     local=/huginn/
     domain-needed
@@ -40,6 +41,7 @@ in
     networkmanager.unmanaged = [
       "interface-name:${bridgeName}"
       "interface-name:th-*"
+      "interface-name:mn-muninn"
     ];
 
     firewall.interfaces.${bridgeName} = {
@@ -72,6 +74,12 @@ in
 
     networks."20-huginn-taps" = {
       matchConfig.Name = "th-*";
+      networkConfig.Bridge = bridgeName;
+      linkConfig.RequiredForOnline = "no";
+    };
+
+    networks."21-muninn-tap" = {
+      matchConfig.Name = "mn-muninn";
       networkConfig.Bridge = bridgeName;
       linkConfig.RequiredForOnline = "no";
     };

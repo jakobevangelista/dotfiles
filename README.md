@@ -280,6 +280,17 @@ ssh jakob@<odin-ip>
 
 For a stable address, set a DHCP reservation on your router, or configure a static IP in NixOS. If your network resolves hostnames through router DNS or mDNS/Avahi, you may also be able to use `ssh jakob@odin` or `ssh jakob@odin.local`.
 
+### Muninn Workstation VM
+
+Odin also defines `muninn`, a manually started 20 GiB Cloud Hypervisor
+workstation with a persistent state disk and direct virtiofs access to the
+host's `inngest-work`, `personal`, and `dotfiles` directories. Its entire VM
+stack has a host cgroup memory ceiling so development workloads cannot consume
+all of Odin's RAM.
+
+See [docs/muninn-workstation.md](docs/muninn-workstation.md) for the security
+boundary, storage model, MacBook SSH setup, and operating commands.
+
 ### Secrets
 
 API keys are stored in `~/.env` (not tracked in git). This file is sourced automatically by zsh on startup.

@@ -21,6 +21,7 @@ in
   imports = [
     ./hardware-configuration.nix
     ./huginn-vms.nix
+    ./muninn-vm.nix
   ];
 
   nixpkgs.config.allowUnfree = true;
@@ -53,6 +54,16 @@ in
 
   time.timeZone = "Etc/UTC";
   i18n.defaultLocale = "en_US.UTF-8";
+
+  # Give Odin a compressed pressure-release valve in addition to Muninn's
+  # hard cgroup limit. This is not a substitute for the limit, but it gives
+  # systemd-oomd time to act during abrupt allocation spikes.
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+    memoryPercent = 25;
+    priority = 100;
+  };
 
   # Change this before install if the server is not UEFI/systemd-boot.
   boot.loader = {
@@ -145,6 +156,9 @@ in
     linger = true;
     extraGroups = [ "wheel" ];
     shell = pkgs.zsh;
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIWpNawHRTkJb9uBKny2HYdtLJQXNwnX8kgkrAuOBDn4 jakobevangelista@gmail.com"
+    ];
   };
 
   environment.systemPackages = with pkgs; [
