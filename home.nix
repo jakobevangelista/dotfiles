@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let homeDir = "/Users/jakobevangelista";
 in {
@@ -50,12 +50,39 @@ in {
       LSCOLORS = "Gxfxcxdxbxegedabagacad";
     };
 
+    # Karabiner does not support symlinking karabiner.json directly. Before the
+    # first directory-level deployment, retain the existing directory (including
+    # its automatic backups) so Home Manager can replace it with the supported
+    # parent-directory symlink.
+    activation.preserveExistingKarabinerDirectory =
+      lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ] ''
+        karabiner_live_dir="${homeDir}/.config/karabiner"
+        karabiner_backup_dir="${homeDir}/.config/karabiner.before-home-manager"
+
+        if [[ -d "$karabiner_live_dir" && ! -L "$karabiner_live_dir" ]]; then
+          if [[ -e "$karabiner_backup_dir" ]]; then
+            echo "Cannot preserve $karabiner_live_dir: $karabiner_backup_dir already exists" >&2
+            exit 1
+          fi
+
+          run /bin/mv "$karabiner_live_dir" "$karabiner_backup_dir"
+        fi
+      '';
+
     file = {
       ".config/ghostty".source = ./.config/ghostty;
       ".config/bat/config".text = ''
         --theme=base16
       '';
       ".config/direnv/lib/hm-nix-direnv.sh".source = "${pkgs.nix-direnv}/share/nix-direnv/direnvrc";
+
+      # Symlink the containing directory, rather than karabiner.json itself, so
+      # Karabiner can monitor and update its configuration normally.
+      ".config/karabiner" = {
+        source = config.lib.file.mkOutOfStoreSymlink
+          "${homeDir}/dotfiles/.config/karabiner";
+        force = true;
+      };
 
       "bin/opencode" = {
         text = ''

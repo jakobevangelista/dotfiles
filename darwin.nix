@@ -51,23 +51,60 @@
     ];
 
     casks = [
+      "1password"
+      "chatgpt"
       "claude-code@latest"
       "codex"
       "ghostty"
+      "google-chrome"
+      "karabiner-elements"
       "ngrok"
       "notion"
+      "obs"
       "orbstack"
+      "raycast"
+      "rectangle"
+      "slack"
       "syncthing-app"
+      "tableplus"
+      "tailscale-app"
       "zoom"
     ];
   };
 
-  # macOS system defaults (uncomment to customize)
-  # system.defaults = {
-  #   dock.autohide = true;
-  #   finder.AppleShowAllExtensions = true;
-  #   NSGlobalDomain.AppleShowAllExtensions = true;
-  # };
+  # Preserve Rectangle's useful behavior and shortcuts. Version, launch-history,
+  # and menu-bar-position values are intentionally omitted as transient state.
+  system.defaults.CustomUserPreferences."com.knollsoft.Rectangle" = {
+    SUEnableAutomaticChecks = false;
+    allowAnyShortcut = true;
+    alternateDefaultShortcuts = true;
+    subsequentExecutionMode = 1;
+
+    leftHalf = {
+      keyCode = 4;
+      modifierFlags = 786432;
+    };
+    rightHalf = {
+      keyCode = 37;
+      modifierFlags = 786432;
+    };
+    nextDisplay = {
+      keyCode = 37;
+      modifierFlags = 1835008;
+    };
+    previousDisplay = {
+      keyCode = 4;
+      modifierFlags = 1835008;
+    };
+    reflowTodo = {
+      keyCode = 45;
+      modifierFlags = 786432;
+    };
+    toggleTodo = {
+      keyCode = 11;
+      modifierFlags = 786432;
+    };
+  };
 
   # User definition — required for home-manager integration
   users.users.jakobevangelista = {

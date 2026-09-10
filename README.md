@@ -5,8 +5,8 @@ Personal macOS and NixOS configuration managed with [nix-darwin](https://github.
 ## What's Managed
 
 **System (nix-darwin / `darwin.nix`):**
-- Homebrew formulae, casks, and taps (declarative — anything not listed gets removed)
-- macOS system settings (optional, commented out by default)
+- Required Homebrew formulae, casks, and taps; additional manual installs are left alone
+- Rectangle shortcuts and window-management preferences
 
 **User (Home Manager / `home.nix`):**
 - Zsh (plugins, aliases, completions, history)
@@ -16,6 +16,7 @@ Personal macOS and NixOS configuration managed with [nix-darwin](https://github.
 - Git
 - Tmux config
 - Ghostty config
+- Karabiner-Elements profile and complex-modification rule
 
 **Shared Linux/macOS dotfiles (`modules/home/shared-dotfiles.nix`):**
 - Neovim
@@ -242,6 +243,11 @@ darwin-rebuild switch --flake ~/dotfiles
 
 This rebuilds everything: system packages, Homebrew, shell config, and dotfile symlinks.
 
+Karabiner's entire `~/.config/karabiner` directory is linked to the tracked
+directory because Karabiner does not support linking `karabiner.json` by itself.
+On the first rebuild after adopting this layout, the previous directory and its
+automatic backups are retained at `~/.config/karabiner.before-home-manager`.
+
 After editing any Odin `.nix` file:
 
 ```bash
@@ -290,7 +296,9 @@ Add it to `darwin.nix` under `brews` (formulae) or `casks` (GUI apps), then rebu
 darwin-rebuild switch --flake ~/dotfiles
 ```
 
-**Note:** `cleanup = "zap"` is enabled. If you `brew install` something ad-hoc without adding it to `darwin.nix`, it will be removed on the next rebuild.
+**Note:** `cleanup = "none"` is enabled. Packages declared in `darwin.nix` are
+installed when missing, while ad-hoc Homebrew installs are left alone and can be
+managed manually.
 
 ## Rollback
 
