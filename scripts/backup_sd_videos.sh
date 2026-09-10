@@ -3,6 +3,12 @@
 # =============================================================================
 # SD Card Video Backup Script
 # Backs up MP4 files from Sony camera SD card to network drive
+#
+# Canonical SD-card destination:
+#   CameraBackup/YYYY/MM/DD/<camera>/
+# For GoPro cards, use --camera gopro and point at DCIM/100GOPRO.
+# Do not use FullProjectBackups for routine camera-card ingests; that directory
+# is reserved for one-time, whole-project safety snapshots.
 # =============================================================================
 
 # === CONFIGURATION ===

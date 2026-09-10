@@ -37,6 +37,27 @@ backupSdCard --camera gopro /Volumes/Untitled/DCIM/100GOPRO
 backupSdCard -n /path/to/videos
 ```
 
+### Canonical Camera-Card Destination
+
+Routine SD-card footage always belongs here:
+
+```text
+/Volumes/plusEvMediaBackup/CameraBackup/YYYY/MM/DD/<camera>/
+```
+
+For a GoPro card mounted as `Untitled`, use:
+
+```bash
+backupSdCard --camera gopro /Volumes/Untitled/DCIM/100GOPRO
+```
+
+This archives the original full-resolution MP4 files under the `gopro` camera
+folder, organized by each clip's recording date. Do **not** put routine SD-card
+backups in `FullProjectBackups`; that directory is only for one-time,
+whole-project safety snapshots. On the NAS, the existing physical archive is
+under `/mnt/disk2/plusEvMediaBackup/CameraBackup/`, while the mounted-share path
+above remains the canonical path used by the scripts.
+
 ### Usage
 
 ```
