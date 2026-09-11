@@ -71,6 +71,9 @@
     ] ++ lib.optional manageCodexWithHomebrew "codex";
   };
 
+  # Keep the Dock out of the way until the pointer reaches the screen edge.
+  system.defaults.dock.autohide = true;
+
   # Preserve Rectangle's useful behavior and shortcuts. Version, launch-history,
   # and menu-bar-position values are intentionally omitted as transient state.
   system.defaults.CustomUserPreferences."com.knollsoft.Rectangle" = {
