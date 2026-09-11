@@ -1,11 +1,11 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, darwinUsername ? "jakobevangelista", ... }:
 
-let homeDir = "/Users/jakobevangelista";
+let homeDir = "/Users/${darwinUsername}";
 in {
   imports = [ ./modules/home/shared-dotfiles.nix ];
 
   home = {
-    username = "jakobevangelista";
+    username = darwinUsername;
     homeDirectory = homeDir;
     stateVersion = "25.05";
 
@@ -16,7 +16,7 @@ in {
       # Prefer Homebrew-owned general CLI tools; Nix provides HM packages and editor tooling.
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
-      "/etc/profiles/per-user/jakobevangelista/bin"
+      "/etc/profiles/per-user/${darwinUsername}/bin"
 
       "${homeDir}/.cargo/bin"
       "${homeDir}/.pnpm"
@@ -96,6 +96,9 @@ in {
               ;;
           esac
 
+          if [ -x /opt/homebrew/bin/opencode ]; then
+            exec /opt/homebrew/bin/opencode "$@"
+          fi
           exec "$HOME/.opencode/bin/opencode" "$@"
         '';
         executable = true;
@@ -206,6 +209,10 @@ in {
       };
 
       initContent = ''
+        # Login profiles can prepend Homebrew after .zshenv. Restore the managed
+        # order so user wrappers and the selected runtimes take precedence.
+        path=(${lib.concatMapStringsSep " " lib.escapeShellArg config.home.sessionPath} $path)
+
         # Shell options (replicate useful OMZ defaults)
         setopt auto_cd auto_pushd pushd_ignore_dups pushdminus
         setopt auto_menu complete_in_word always_to_end
@@ -233,15 +240,17 @@ in {
         bindkey '^x^e' edit-command-line
 
         # NVM (lazy-loaded — only sources nvm.sh on first use of nvm/node/npm/npx)
-        function _lazy_load_nvm() {
-          unset -f nvm node npm npx
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-        }
-        function nvm() { _lazy_load_nvm; nvm "$@"; }
-        function node() { _lazy_load_nvm; node "$@"; }
-        function npm() { _lazy_load_nvm; npm "$@"; }
-        function npx() { _lazy_load_nvm; npx "$@"; }
+        if [ -s "$NVM_DIR/nvm.sh" ]; then
+          function _lazy_load_nvm() {
+            unset -f nvm node npm npx
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+          }
+          function nvm() { _lazy_load_nvm; nvm "$@"; }
+          function node() { _lazy_load_nvm; node "$@"; }
+          function npm() { _lazy_load_nvm; npm "$@"; }
+          function npx() { _lazy_load_nvm; npx "$@"; }
+        fi
 
         # Bun completions
         [ -s "${homeDir}/.bun/_bun" ] && source "${homeDir}/.bun/_bun"

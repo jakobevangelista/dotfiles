@@ -15,7 +15,24 @@
 
   outputs = { self, nixpkgs, nix-darwin, home-manager, ... }:
     let
-      darwinUsername = "jakobevangelista";
+      mkDarwin = { username, manageCodexWithHomebrew ? true, extraModules ? [ ] }:
+        nix-darwin.lib.darwinSystem {
+          system = "aarch64-darwin";
+          specialArgs = {
+            darwinUsername = username;
+            inherit manageCodexWithHomebrew;
+          };
+          modules = [
+            ./darwin.nix
+            home-manager.darwinModules.home-manager
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.extraSpecialArgs.darwinUsername = username;
+              home-manager.users.${username} = import ./home.nix;
+            }
+          ] ++ extraModules;
+        };
       odinUsername = "jakob";
       linuxSystem = "x86_64-linux";
       linuxPkgs = nixpkgs.legacyPackages.${linuxSystem};
@@ -64,19 +81,15 @@
           update-opencode = mkUpdaterApp "update-opencode";
         };
 
-      darwinConfigurations."jakobs-goated-inngest-macbook" =
-        nix-darwin.lib.darwinSystem {
-          system = "aarch64-darwin";
-          modules = [
-            ./darwin.nix
-            home-manager.darwinModules.home-manager
-            {
-              home-manager.useGlobalPkgs = true;
-              home-manager.useUserPackages = true;
-              home-manager.users.${darwinUsername} = import ./home.nix;
-            }
-          ];
-        };
+      darwinConfigurations."jakobs-goated-inngest-macbook" = mkDarwin {
+        username = "jakobevangelista";
+      };
+
+      darwinConfigurations."jakob-temp-macbook-pro" = mkDarwin {
+        username = "jakobtest";
+        manageCodexWithHomebrew = false;
+        extraModules = [ ./hosts/darwin/jakob-temp-macbook-pro.nix ];
+      };
 
       nixosConfigurations."huginn-base" = nixpkgs.lib.nixosSystem {
         system = linuxSystem;

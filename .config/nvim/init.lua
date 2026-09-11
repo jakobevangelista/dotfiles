@@ -180,6 +180,14 @@ if not vim.loop.fs_stat(lazypath) then
 end ---@diagnostic disable-next-line: undefined-field
 vim.opt.rtp:prepend(lazypath)
 
+-- Home Manager links the config into the read-only Nix store. Keep Lazy's
+-- writable lockfile in state, seeded from the repository's pinned versions.
+local lazy_lockfile = vim.fn.stdpath 'state' .. '/lazy-lock.json'
+if vim.fn.filereadable(lazy_lockfile) == 0 then
+  vim.fn.mkdir(vim.fn.stdpath 'state', 'p')
+  vim.fn.writefile(vim.fn.readfile(vim.fn.stdpath 'config' .. '/lazy-lock.json'), lazy_lockfile)
+end
+
 -- [[ Configure and install plugins ]]
 --
 --  To check the current status of your plugins, run
@@ -943,6 +951,7 @@ require('lazy').setup({
   require 'kickstart.plugins.autopairs',
   require 'custom.plugins.oil',
 }, {
+  lockfile = lazy_lockfile,
   rocks = { enabled = false },
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the

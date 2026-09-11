@@ -18,6 +18,7 @@ This repo manages Jakob's dotfiles across macOS and NixOS.
 - Odin intentionally uses Nix packages through Home Manager/NixOS.
 - Neovim, tmux, OpenCode, Starship, and `tmux-sessionizer` are shared between hosts.
 - Ghostty is macOS-only.
+- macOS targets have different account names: `jakobs-goated-inngest-macbook` uses `jakobevangelista`; `jakob-temp-macbook-pro` uses `jakobtest`. Choose the matching host; do not rename accounts or home folders to fit a configuration.
 - Do not remove generated hardware config from `hosts/nixos/odin/hardware-configuration.nix` unless replacing it with a freshly generated one from Odin.
 
 ## Safe Workflow
@@ -26,8 +27,8 @@ This repo manages Jakob's dotfiles across macOS and NixOS.
 - Do not run destructive Git commands unless explicitly requested.
 - Do not commit unless explicitly requested.
 - Check the current worktree before editing with `git status --short`.
-- Validate Nix changes when practical with `nix flake check path:/Users/jakobevangelista/dotfiles`.
-- Validate macOS builds with `darwin-rebuild build --flake path:/Users/jakobevangelista/dotfiles#jakobs-goated-inngest-macbook`.
+- Validate Nix changes from the repo with `nix flake check --no-build --no-update-lock-file "path:$PWD"`.
+- Validate macOS builds with `nix build --no-update-lock-file "path:$PWD#darwinConfigurations.<host>.system"`, substituting the matching host above. Keep `flake.lock` unchanged unless an update is requested.
 - Validate Odin changes on Odin with `sudo nixos-rebuild switch --flake ~/dotfiles#odin`.
 
 ## Agent Usage Tips

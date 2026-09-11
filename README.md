@@ -34,42 +34,93 @@ Personal macOS and NixOS configuration managed with [nix-darwin](https://github.
 
 ### Prerequisites
 
+Install Apple's Command Line Tools (`xcode-select --install`) and
+[Homebrew](https://brew.sh/) first. On Apple Silicon, Homebrew must be available at
+`/opt/homebrew/bin/brew`; this configuration manages its packages, not its installation.
+
 Install Nix via the [Determinate installer](https://github.com/DeterminateSystems/nix-installer):
 
 ```bash
 curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate
 ```
 
-### SSH Key
+Open a new terminal afterward. `nix.enable = false` lets Determinate manage the daemon.
 
-Generate a key and add it to [GitHub](https://github.com/settings/keys):
-
-```bash
-ssh-keygen -t ed25519 -C "jakobevangelista@gmail.com"
-pbcopy < ~/.ssh/id_ed25519.pub
-```
-
-Until the first rebuild, `~/.ssh/config` doesn't exist yet. Create it manually:
+Homebrew 6 requires explicit trust for third-party formulae. After reviewing these
+three vendors' formulae, authorize the packages used by this configuration:
 
 ```bash
-mkdir -p ~/.ssh && cat <<'EOF' > ~/.ssh/config
-Host github.com
-  AddKeysToAgent yes
-  UseKeychain yes
-  IdentityFile ~/.ssh/id_ed25519
-EOF
-chmod 600 ~/.ssh/config
+brew trust --formula hashicorp/tap/terraform derailed/k9s/k9s stripe/stripe-cli/stripe
 ```
+
+### Choose the Mac
+
+The computer name and account short name are separate settings. These targets use
+the existing accounts; rebuilding does not rename an account or move its home.
+
+| Flake target | Account / home | Host additions |
+| --- | --- | --- |
+| `jakobs-goated-inngest-macbook` | `jakobevangelista` / `/Users/jakobevangelista` | Original Mac configuration |
+| `jakob-temp-macbook-pro` | `jakobtest` / `/Users/jakobtest` | 1Password SSH agent and CLI, Geist Mono Nerd Font, Node 24, OpenCode; preserves standalone Codex in `~/.local/bin` |
+
+### SSH with 1Password (new Mac)
+
+Install and sign in to 1Password, then enable **Settings > Developer > Use the SSH
+Agent**. On the old Mac, import an existing private key using **New Item > SSH Key >
+Add Private Key > Import a Key File**. Importing the same key preserves its existing
+GitHub/server authorizations. Alternatively, generate an Ed25519 key in 1Password
+and add its **public** key to [GitHub](https://github.com/settings/keys) and any servers.
+Private keys stay outside this repository.
+
+The new Mac target writes `~/.ssh/config` with 1Password's agent socket. After
+activation, run `ssh -T git@github.com` and approve the 1Password prompt. Successful
+GitHub authentication prints a greeting and exits with status 1 (there is no shell).
+See the [1Password SSH guide](https://www.1password.dev/ssh/get-started).
+
+If 1Password has already generated `~/.ssh/config`, preserve it as a backup before
+the first switch so Home Manager can take ownership of that path.
+
+Tailscale needs a separate sign-in and macOS network-extension approval. Joining
+the tailnet provides connectivity; servers still need to authorize your SSH key.
 
 ### Clone and Bootstrap
 
 ```bash
-git clone git@github.com:jakobevangelista/dotfiles.git ~/dotfiles
+git clone https://github.com/jakobevangelista/dotfiles.git ~/dotfiles
 cd ~/dotfiles
-nix run nix-darwin/master#darwin-rebuild -- switch --flake .
+host=jakob-temp-macbook-pro  # Use the matching target from the table above.
+nix build --no-update-lock-file "path:$PWD#darwinConfigurations.${host}.system"
+sudo ./result/sw/bin/darwin-rebuild switch --flake "path:$PWD#$host"
 ```
 
-The bootstrap command installs nix-darwin and applies the full configuration (system + user). This only needs to be run once. After rebuild, git is configured to rewrite all HTTPS GitHub URLs to SSH automatically.
+The first command builds the pinned configuration before the privileged switch
+installs packages and activates system/user settings. Keep `flake.lock` unchanged
+for a first install. The `path:` form also includes newly added local host files.
+After activation, open a new terminal. Git rewrites HTTPS GitHub URLs to SSH, so
+finish SSH authentication before installing editor plugins or cloning projects.
+
+If the first activation reports an unexpected `/etc/zshenv`, inspect it. The
+Determinate installer may have created a Nix-only initialization snippet. Preserve
+that file as `/etc/zshenv.before-nix-darwin` before retrying; do not overwrite an
+existing backup or discard unrelated settings.
+
+Tmux's config uses TPM if present. Install it once, then install the declared plugins
+with **prefix + I** (the prefix is **Ctrl-a**):
+
+```bash
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+```
+
+Neovim installs its plugins on first launch. Its writable Lazy lockfile lives at
+`~/.local/state/nvim/lazy-lock.json`, initially seeded from the repository's tracked
+lockfile because the managed config is read-only. After intentional plugin updates,
+copy that state lockfile back to `.config/nvim/lazy-lock.json` to record the new pins.
+On an existing machine, use `:Lazy restore` after copying updated repository pins
+to the state lockfile when you want to adopt those exact versions.
+
+Project-specific runtimes, `~/.env` secrets, AI-tool sign-ins, and remote services
+are separate setup steps. The `oc` alias expects the existing tailnet proxy at
+`100.125.253.7:3456` to be reachable.
 
 ## Odin NixOS Server
 
@@ -235,13 +286,17 @@ API keys are stored in `~/.env` (not tracked in git). This file is sourced autom
 
 ## Updating
 
-After editing any macOS `.nix` file:
+After pulling or editing macOS configuration, rebuild with the target matching
+that Mac's account from the table above:
 
 ```bash
-darwin-rebuild switch --flake ~/dotfiles
+host=jakob-temp-macbook-pro  # On the original Mac: jakobs-goated-inngest-macbook
+sudo darwin-rebuild switch --flake "path:$HOME/dotfiles#$host"
 ```
 
 This rebuilds everything: system packages, Homebrew, shell config, and dotfile symlinks.
+Shared changes apply to either Mac on its next rebuild. Settings in
+`hosts/darwin/jakob-temp-macbook-pro.nix` apply only to the new Mac target.
 
 Karabiner's entire `~/.config/karabiner` directory is linked to the tracked
 directory because Karabiner does not support linking `karabiner.json` by itself.
@@ -299,12 +354,12 @@ Add it to `darwin.nix` under `brews` (formulae) or `casks` (GUI apps), then rebu
 
 ```bash
 # Edit darwin.nix, then:
-darwin-rebuild switch --flake ~/dotfiles
+host=jakob-temp-macbook-pro  # On the original Mac: jakobs-goated-inngest-macbook
+sudo darwin-rebuild switch --flake "path:$HOME/dotfiles#$host"
 ```
 
-**Note:** `cleanup = "none"` is enabled. Packages declared in `darwin.nix` are
-installed when missing, while ad-hoc Homebrew installs are left alone and can be
-managed manually.
+`cleanup = "none"` preserves packages installed outside this configuration. Add
+machine-specific packages in `hosts/darwin/` and shared Mac packages in `darwin.nix`.
 
 ## Rollback
 
@@ -313,7 +368,7 @@ managed manually.
 darwin-rebuild --list-generations
 
 # Roll back to a specific generation
-darwin-rebuild switch --switch-generation <number>
+sudo darwin-rebuild switch --switch-generation <number>
 ```
 
 ## Structure

@@ -1,4 +1,4 @@
-{ ... }: {
+{ lib, darwinUsername ? "jakobevangelista", manageCodexWithHomebrew ? true, ... }: {
   # Nix daemon is managed by Determinate — don't let nix-darwin conflict
   nix.enable = false;
   nixpkgs.config.allowUnfree = true;
@@ -54,7 +54,6 @@
       "1password"
       "chatgpt"
       "claude-code@latest"
-      "codex"
       "ghostty"
       "google-chrome"
       "karabiner-elements"
@@ -69,7 +68,7 @@
       "tableplus"
       "tailscale-app"
       "zoom"
-    ];
+    ] ++ lib.optional manageCodexWithHomebrew "codex";
   };
 
   # Preserve Rectangle's useful behavior and shortcuts. Version, launch-history,
@@ -119,12 +118,12 @@
   };
 
   # User definition — required for home-manager integration
-  users.users.jakobevangelista = {
-    name = "jakobevangelista";
-    home = "/Users/jakobevangelista";
+  users.users.${darwinUsername} = {
+    name = darwinUsername;
+    home = "/Users/${darwinUsername}";
   };
 
   # Required for nix-darwin
-  system.primaryUser = "jakobevangelista";
+  system.primaryUser = darwinUsername;
   system.stateVersion = 6;
 }
