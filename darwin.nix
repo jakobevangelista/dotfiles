@@ -106,6 +106,18 @@
     };
   };
 
+  # Preserve non-sensitive Raycast preferences. Extensions, quicklinks,
+  # snippets, notes, and credentials remain in Raycast's encrypted data store
+  # and should be restored with Raycast's encrypted export or Cloud Sync.
+  system.defaults.CustomUserPreferences."com.raycast.macos" = {
+    raycastGlobalHotkey = "Command-49";
+    raycastPreferredWindowMode = "default";
+    raycastShouldFollowSystemAppearance = true;
+    useHyperKeyIcon = false;
+    floatingNotes_raycastNotesFormatBarVisible = false;
+    screenshots_dataSourceEnabled = true;
+  };
+
   # User definition — required for home-manager integration
   users.users.jakobevangelista = {
     name = "jakobevangelista";

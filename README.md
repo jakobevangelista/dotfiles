@@ -6,7 +6,7 @@ Personal macOS and NixOS configuration managed with [nix-darwin](https://github.
 
 **System (nix-darwin / `darwin.nix`):**
 - Required Homebrew formulae, casks, and taps; additional manual installs are left alone
-- Rectangle shortcuts and window-management preferences
+- Rectangle shortcuts plus non-sensitive Raycast preferences
 
 **User (Home Manager / `home.nix`):**
 - Zsh (plugins, aliases, completions, history)
@@ -247,6 +247,12 @@ Karabiner's entire `~/.config/karabiner` directory is linked to the tracked
 directory because Karabiner does not support linking `karabiner.json` by itself.
 On the first rebuild after adopting this layout, the previous directory and its
 automatic backups are retained at `~/.config/karabiner.before-home-manager`.
+
+Raycast's launcher hotkey, window mode, appearance, icon choice, Notes format
+bar, and Screenshots search preference are declared in `darwin.nix`. Raycast's
+extensions, quicklinks, snippets, notes, and credentials live in its encrypted
+data store and must be restored with Raycast's encrypted Settings & Data export
+or Cloud Sync rather than committed to this repository.
 
 After editing any Odin `.nix` file:
 
