@@ -64,6 +64,10 @@ in
       source = ../../.config/agents/skills/using-muninn;
       force = true;
     };
+    ".codex/skills/using-inngest-prod-kubernetes" = {
+      source = ../../.config/agents/skills/using-inngest-prod-kubernetes;
+      force = true;
+    };
 
     ".config/opencode/opencode.jsonc" = {
       source = ../../.config/opencode/opencode.jsonc;
