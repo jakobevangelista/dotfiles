@@ -13,7 +13,14 @@
     };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      nix-darwin,
+      home-manager,
+      ...
+    }:
     let
       mkDarwin = { username, manageCodexWithHomebrew ? true, extraModules ? [ ] }:
         nix-darwin.lib.darwinSystem {
@@ -44,28 +51,36 @@
         grok = prev.callPackage ./pkgs/grok { };
         opencode = prev.callPackage ./pkgs/opencode { };
       };
-    in {
+    in
+    {
       packages.${linuxSystem} = {
+        cloud-tools = linuxPkgs.callPackage ./pkgs/cloud-tools { };
+
         inherit (aiUpdaters)
           update-ai-tools
           update-amp
           update-claude-code
           update-codex
           update-grok
-          update-opencode;
+          update-opencode
+          ;
 
         huginn = linuxPkgs.callPackage ./pkgs/huginn { };
 
         muninn = linuxPkgs.callPackage ./pkgs/muninn { };
 
         huginn-base-manifest =
-          let cfg = self.nixosConfigurations.huginn-base.config;
-          in linuxPkgs.writeText "huginn-base-manifest.json" (builtins.toJSON {
-            kernel = "${cfg.system.build.kernel}/${cfg.system.boot.loader.kernelFile}";
-            initrd = "${cfg.system.build.initialRamdisk}/${cfg.system.boot.loader.initrdFile}";
-            system = "${cfg.system.build.toplevel}";
-            cmdline = "console=ttyS0 reboot=t panic=-1 init=${cfg.system.build.toplevel}/init";
-          });
+          let
+            cfg = self.nixosConfigurations.huginn-base.config;
+          in
+          linuxPkgs.writeText "huginn-base-manifest.json" (
+            builtins.toJSON {
+              kernel = "${cfg.system.build.kernel}/${cfg.system.boot.loader.kernelFile}";
+              initrd = "${cfg.system.build.initialRamdisk}/${cfg.system.boot.loader.initrdFile}";
+              system = "${cfg.system.build.toplevel}";
+              cmdline = "console=ttyS0 reboot=t panic=-1 init=${cfg.system.build.toplevel}/init";
+            }
+          );
 
         muninn-manifest =
           let
@@ -91,7 +106,8 @@
             type = "app";
             program = "${self.packages.${linuxSystem}.${name}}/bin/${name}";
           };
-        in {
+        in
+        {
           update-ai-tools = mkUpdaterApp "update-ai-tools";
           update-amp = mkUpdaterApp "update-amp";
           update-claude-code = mkUpdaterApp "update-claude-code";
@@ -131,7 +147,9 @@
 
       nixosConfigurations."odin" = nixpkgs.lib.nixosSystem {
         system = linuxSystem;
-        specialArgs = { dotfilesPackages = self.packages.${linuxSystem}; };
+        specialArgs = {
+          dotfilesPackages = self.packages.${linuxSystem};
+        };
         modules = [
           ./hosts/nixos/odin
           home-manager.nixosModules.home-manager

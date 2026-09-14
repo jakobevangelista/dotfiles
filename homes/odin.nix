@@ -34,7 +34,9 @@ in {
     stateVersion = "25.05";
 
     packages = with pkgs; [
+      (pkgs.callPackage ../pkgs/cloud-tools { })
       amp-cli
+      ansible
       bat
       claude-code
       codex
@@ -48,6 +50,7 @@ in {
       ngrok
       opencode
       ripgrep
+      sops
       tmux
       tree-sitter
       unzip
