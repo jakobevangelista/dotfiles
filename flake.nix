@@ -58,6 +58,7 @@
         datadog-pup = linuxPkgs.callPackage ./pkgs/datadog-pup { };
         pscale = linuxPkgs.callPackage ./pkgs/pscale { };
         work = linuxPkgs.callPackage ./pkgs/work { };
+        odin-sessions = linuxPkgs.callPackage ./pkgs/odin-sessions { };
 
         inherit (aiUpdaters)
           update-ai-tools

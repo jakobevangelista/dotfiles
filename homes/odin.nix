@@ -26,7 +26,10 @@ let
     (builtins.fromJSON (builtins.readFile ../.config/opencode/opencode.jsonc))
     (builtins.fromJSON (builtins.readFile ../.config/opencode/hosts/odin-opencode.jsonc));
 in {
-  imports = [ ../modules/home/shared-dotfiles.nix ];
+  imports = [
+    ../modules/home/shared-dotfiles.nix
+    ../modules/home/session-rescue.nix
+  ];
 
   home = {
     inherit username;
