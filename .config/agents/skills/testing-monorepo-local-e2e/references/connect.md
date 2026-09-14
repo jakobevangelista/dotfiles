@@ -60,7 +60,7 @@ The gateway override is a full WebSocket endpoint. Omitting `/v0/connect`
 causes a successful HTTP start request followed by an opaque SDK reconnect
 loop.
 
-From `/Users/jakobevangelista/inngest-work/inngest-test-app`, start:
+From `/Users/jakob/inngest-work/inngest-test-app`, start:
 
 ```sh
 INNGEST_DEV=1 \

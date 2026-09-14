@@ -29,7 +29,7 @@ Verify these values before each operation.
 
 | Role | Address/path |
 |---|---|
-| MacBook jump/test host | `100.107.110.76` |
+| MacBook jump/test host | `jakob@100.75.136.81` |
 | Production node 1 | `ubuntu@67.213.115.17` (`prod-sandbox-lat-iad-1`) |
 | Production node 2 | `ubuntu@45.250.254.57` (`prod-sandbox-lat-iad-2`) |
 | Node 1 machine ID | `fd355cbb62214c27bbab4337a9d970da` |
@@ -37,14 +37,14 @@ Verify these values before each operation.
 | Production Kubernetes context | `arn:aws:eks:us-east-2:836356947314:cluster/main` |
 | Production API | `https://api.inngest.com` |
 | Simcity deployment bundle | `<simcity-checkout>/infra/ansible` |
-| Mac SDK checkouts | `/Users/jakobevangelista/inngest-work/inngest-js*` |
+| Mac SDK checkouts | `/Users/jakob/inngest-work/inngest-js*` |
 
 The SSH keys live on the Mac:
 
 ```sh
-ssh -o BatchMode=yes 100.107.110.76 'hostname; whoami'
-ssh 100.107.110.76 "ssh -o BatchMode=yes ubuntu@67.213.115.17 'hostname'"
-ssh 100.107.110.76 "ssh -o BatchMode=yes ubuntu@45.250.254.57 'hostname'"
+ssh -o BatchMode=yes jakob@100.75.136.81 'hostname; whoami'
+ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@67.213.115.17 'hostname'"
+ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@45.250.254.57 'hostname'"
 ```
 
 ## Non-negotiable safety rules
@@ -89,7 +89,7 @@ aws-vault exec prod -- sh -c '
 Use the handoff without printing it and require AWS account `836356947314`:
 
 ```sh
-ssh 100.107.110.76 '
+ssh jakob@100.75.136.81 '
   set -a; . /tmp/amp-prod-aws.env; set +a
   aws sts get-caller-identity
   kubectl --context arn:aws:eks:us-east-2:836356947314:cluster/main \
@@ -220,7 +220,7 @@ Use the updated local SDK required by the feature, not the latest registry
 package by default:
 
 ```sh
-ssh 100.107.110.76 '
+ssh jakob@100.75.136.81 '
   cd /path/to/inngest-js
   jj status
   jj log -r "@ | @-" --no-graph -n 2

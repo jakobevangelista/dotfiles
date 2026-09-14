@@ -46,9 +46,9 @@ Treat these as defaults and verify them before changing anything:
 
 | Role | Address or path |
 |---|---|
-| MacBook | `100.107.110.76` over Tailscale SSH |
-| Canonical monorepo | `/Users/jakobevangelista/inngest-work/monorepo` |
-| Reusable SDK app | `/Users/jakobevangelista/inngest-work/inngest-test-app` |
+| MacBook | `jakob@100.75.136.81` over Tailscale SSH |
+| Canonical monorepo | `/Users/jakob/inngest-work/monorepo` |
+| Reusable SDK app | `/Users/jakob/inngest-work/inngest-test-app` |
 | Compose project | `inngest` |
 | App API | `http://127.0.0.1:8090` |
 | Event API | `http://127.0.0.1:9999` |
@@ -58,11 +58,11 @@ Treat these as defaults and verify them before changing anything:
 Start with a read-only inventory:
 
 ```sh
-ssh -o BatchMode=yes 100.107.110.76 'hostname; whoami'
-ssh -o BatchMode=yes 100.107.110.76 \
+ssh -o BatchMode=yes jakob@100.75.136.81 'hostname; whoami'
+ssh -o BatchMode=yes jakob@100.75.136.81 \
   'docker compose ls; docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"'
-ssh -o BatchMode=yes 100.107.110.76 \
-  'cd /Users/jakobevangelista/inngest-work/monorepo && jj status && jj workspace list'
+ssh -o BatchMode=yes jakob@100.75.136.81 \
+  'cd /Users/jakob/inngest-work/monorepo && jj status && jj workspace list'
 ```
 
 If Docker is unavailable, check whether OrbStack is merely stopped. Starting
@@ -70,7 +70,7 @@ OrbStack is appropriate when the user asked to run this local E2E; do not
 replace or delete existing Compose projects just to free ports.
 
 ```sh
-ssh 100.107.110.76 'open -a OrbStack'
+ssh jakob@100.75.136.81 'open -a OrbStack'
 ```
 
 Poll `docker info` with a short bound. Inventory again because OrbStack may
@@ -83,13 +83,13 @@ Resolve the requested revision and create a disposable workspace beside the
 canonical repo when the existing workspace is dirty or used for other work:
 
 ```sh
-jj -R /Users/jakobevangelista/inngest-work/monorepo git fetch
-jj -R /Users/jakobevangelista/inngest-work/monorepo log \
+jj -R /Users/jakob/inngest-work/monorepo git fetch
+jj -R /Users/jakob/inngest-work/monorepo log \
   -r '<revision>' --no-graph \
   -T 'commit_id.short(12) ++ " " ++ bookmarks ++ " " ++ description.first_line() ++ "\n"'
-jj -R /Users/jakobevangelista/inngest-work/monorepo workspace add \
+jj -R /Users/jakob/inngest-work/monorepo workspace add \
   --name '<unique-e2e-name>' -r '<revision>' \
-  /Users/jakobevangelista/inngest-work/'<unique-e2e-name>'
+  /Users/jakob/inngest-work/'<unique-e2e-name>'
 ```
 
 Jakob's canonical Mac working copy may contain uncommitted ARM compatibility
@@ -130,7 +130,7 @@ working copy currently carries ARM-compatible FoundationDB service settings,
 so it can be used to launch those images after its diff has been inspected:
 
 ```sh
-cd /Users/jakobevangelista/inngest-work/monorepo
+cd /Users/jakob/inngest-work/monorepo
 make up
 ```
 

@@ -30,7 +30,7 @@ Verify all values before use.
 
 | Role | Address/path |
 |---|---|
-| MacBook jump/test host | `100.107.110.76` |
+| MacBook jump/test host | `jakob@100.75.136.81` |
 | Latitude staging node | `ubuntu@103.106.59.67` (`latitude-compute-1`) |
 | OVH staging node | `ubuntu@51.222.46.206` (`ovh-compute-1`) |
 | Dev box in staging inventory | `ubuntu@51.222.105.190` (`ovh-local-1`) |
@@ -39,14 +39,14 @@ Verify all values before use.
 | Staging API | `https://api.inngest.net` |
 | Staging ingest | `https://stage.inn.gs` |
 | Simcity deployment bundle | `<simcity-checkout>/infra/ansible` |
-| Mac SDK checkouts | `/Users/jakobevangelista/inngest-work/inngest-js*` |
+| Mac SDK checkouts | `/Users/jakob/inngest-work/inngest-js*` |
 
 The node SSH keys live on the Mac. Reach nodes through it:
 
 ```sh
-ssh -o BatchMode=yes 100.107.110.76 'hostname; whoami'
-ssh 100.107.110.76 "ssh -o BatchMode=yes ubuntu@103.106.59.67 'hostname'"
-ssh 100.107.110.76 "ssh -o BatchMode=yes ubuntu@51.222.46.206 'hostname'"
+ssh -o BatchMode=yes jakob@100.75.136.81 'hostname; whoami'
+ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@103.106.59.67 'hostname'"
+ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@51.222.46.206 'hostname'"
 ```
 
 ## Safety boundaries
@@ -122,7 +122,7 @@ aws-vault exec stage -- sh -c '
 Then inspect staging health:
 
 ```sh
-ssh 100.107.110.76 '
+ssh jakob@100.75.136.81 '
   set -a; . /tmp/amp-stage-aws.env; set +a
   kubectl --context arn:aws:eks:us-east-2:909933634258:cluster/main \
     -n inngest get deploy,statefulset,pods -o wide
@@ -237,7 +237,7 @@ Do not deploy the second node until the canary passes the real SDK E2E.
 Use the exact SDK revision needed by the change, not a registry package:
 
 ```sh
-ssh 100.107.110.76 '
+ssh jakob@100.75.136.81 '
   cd /path/to/inngest-js
   jj status
   jj log -r "@ | @-" --no-graph -n 2

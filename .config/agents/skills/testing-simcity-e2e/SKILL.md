@@ -49,7 +49,7 @@ making changes; do not assume stale host state is safe.
 | Role | Address/path | Notes |
 |---|---|---|
 | Local Linux host | current machine | Runs monorepo, SDK test, Docker, h2c bridge |
-| MacBook jump host | `100.107.110.76` | Tailscale host `jakobs-goated-inngest-macbook-513` |
+| MacBook jump host | `jakob@100.75.136.81` | Tailscale host `jakob-goated-inngest-macbook-pro` |
 | Simcity dev box | `ubuntu@51.222.105.190` | Reach from the MacBook; hostname `local-compute-01` |
 | Dev-box machine ID | `d65f25f351114245be681fc3b1380b3d` | Verify from node logs/state before issuing a token |
 | Monorepo root | `/home/jakob/inngest-work/monorepo` | Many feature workspaces may exist beside it |
@@ -59,8 +59,8 @@ making changes; do not assume stale host state is safe.
 Connectivity checks:
 
 ```sh
-ssh -o BatchMode=yes 100.107.110.76 'hostname; whoami'
-ssh -o BatchMode=yes 100.107.110.76 \
+ssh -o BatchMode=yes jakob@100.75.136.81 'hostname; whoami'
+ssh -o BatchMode=yes jakob@100.75.136.81 \
   "ssh -o BatchMode=yes ubuntu@51.222.105.190 'hostname; whoami'"
 ```
 
@@ -167,7 +167,7 @@ systemctl --user set-property --runtime docker.service \
 Inventory the dev box before changing it:
 
 ```sh
-ssh 100.107.110.76 "ssh ubuntu@51.222.105.190 '
+ssh jakob@100.75.136.81 "ssh ubuntu@51.222.105.190 '
   sudo systemctl list-units --all --type=service "simcity*" --no-pager
   sudo systemctl cat simcity-node 2>/dev/null || true
   sudo find /etc/simcity -maxdepth 2 -type f -print
@@ -354,10 +354,10 @@ Choose an unused tunnel port, for example `18094`. Avoid existing ports such as
 ssh -fNT -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
   -R 127.0.0.1:18094:127.0.0.1:28091 \
-  100.107.110.76
+  jakob@100.75.136.81
 
 # MacBook -> dev box
-ssh 100.107.110.76 \
+ssh jakob@100.75.136.81 \
   'ssh -fNT -o ExitOnForwardFailure=yes \
     -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
     -R 127.0.0.1:18094:127.0.0.1:18094 \
@@ -407,7 +407,7 @@ Transfer large EROFS files compressed through both SSH hops:
 
 ```sh
 zstd -T0 -3 -c artifacts/overlay.erofs |
-  ssh 100.107.110.76 \
+  ssh jakob@100.75.136.81 \
     'ssh ubuntu@51.222.105.190 \
       "zstd -d -c > /tmp/simcity-e2e-overlay.erofs"'
 ```
