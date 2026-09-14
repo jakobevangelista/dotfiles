@@ -7,6 +7,15 @@ state.
 
 ## Status
 
+**Temporary jump-box profile applied (2026-09-24):** a 4 GiB / 2 vCPU configuration
+is installed for work-network access. See the [activation status and restore
+instructions](muninn-jumpbox-2026-09-24.md) before starting workstation workloads.
+
+The work-tool configuration and browser-login helpers are documented in
+[Work access from Muninn](muninn-work-access.md). Work-tailnet enrollment,
+cloud logins, and an approved outbound SSH identity are separate setup steps;
+adding the configuration does not transfer existing cloud credentials.
+
 The NixOS guest, Odin systemd services, lifecycle CLI, persistent state disk,
 networking, and live project shares are implemented. The configuration is
 manual-start by design: rebuilding Odin installs it but does not create the
@@ -161,8 +170,9 @@ Odin's existing `virbr0` NAT supplies outbound access. A failed or hostile
 guest cannot alter Odin's physical interface because it has only the TAP-backed
 virtio NIC.
 
-Tailscale runs inside Muninn using its virtual NIC. It does not advertise an
-exit node or subnet routes, and does not accept subnet routes. MagicDNS is
+Tailscale runs inside Muninn using its virtual NIC. It accepts work-tailnet
+subnet routes to reach the Ashburn IPv6 Kubernetes APIs; it does not advertise
+an exit node or subnet routes. MagicDNS is
 accepted through the guest's existing systemd-resolved. Tailscale SSH handles
 connections to Muninn's Tailscale IP and authenticates using tailnet identity
 and the tailnet's SSH access policy. Client SSH keys are not required for
@@ -184,11 +194,12 @@ New state disks also include the directory in their skeleton. No auth key is
 stored in the repository; enroll once after deploying and restarting:
 
 ```bash
-muninn ssh sudo tailscale up --accept-dns=true --accept-routes=false \
+muninn ssh /run/wrappers/bin/sudo tailscale login --accept-dns=true --accept-routes=true \
   --advertise-exit-node=false --advertise-routes= --ssh=true --netfilter-mode=off
 ```
 
-Open the printed login URL in a browser. Then check `muninn ssh tailscale
+Open the printed login URL in a browser and select the Inngest work account.
+Then check `muninn ssh tailscale
 status`, MagicDNS, and direct MacBook SSH to `jakob@<muninn-tailscale-ip>`.
 Keep the MacBook's existing `Host muninn` ProxyJump entry as a fallback.
 A `muninn restart` must retain the same Tailscale device ID and IP without
@@ -197,7 +208,7 @@ another login.
 From a device signed into the tailnet, connect as the existing guest user:
 
 ```bash
-ssh jakob@muninn.tail1d42c.ts.net
+ssh jakob@muninn.tail2dd48.ts.net
 # Or use Tailscale's SSH wrapper for automatic host-key verification:
 tailscale ssh jakob@muninn
 ```
