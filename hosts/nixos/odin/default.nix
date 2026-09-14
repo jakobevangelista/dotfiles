@@ -20,6 +20,7 @@ in
 {
   imports = [
     ./hardware-configuration.nix
+    ./nvidia.nix
     ./huginn-vms.nix
     ./muninn-vm.nix
   ];
