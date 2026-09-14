@@ -1,7 +1,7 @@
 ---
 name: testing-simcity-e2e
-description: "Runs a real full-stack Simcity sandbox E2E with a local monorepo control plane and local JavaScript SDK against the remote Ubuntu KVM node reached through Jakob's MacBook. Use when validating Simcity node, rootfs, sandbox REST v2, networking, or SDK changes end to end."
-compatibility: "Requires Linux, Docker, Nix, jj, pnpm, SSH access to Jakob's MacBook and the Ubuntu Simcity dev box, plus enough local memory for a stack capped below 20 GiB."
+description: "Runs a real full-stack Simcity sandbox E2E from Odin with a local monorepo control plane and JavaScript SDK against the remote Ubuntu KVM dev box. Use when validating Simcity node, rootfs, sandbox REST v2, networking, or SDK changes end to end."
+compatibility: "Requires Odin with Linux, Docker, Nix, jj, pnpm, a 1Password SSH agent forwarded from Jakob's MacBook, direct SSH access to the Ubuntu Simcity dev box, and enough memory for a stack capped below 20 GiB."
 ---
 
 # Testing Simcity End to End
@@ -48,24 +48,54 @@ making changes; do not assume stale host state is safe.
 
 | Role | Address/path | Notes |
 |---|---|---|
-| Local Linux host | current machine | Runs monorepo, SDK test, Docker, h2c bridge |
-| MacBook jump host | `jakob@100.75.136.81` | Tailscale host `jakob-goated-inngest-macbook-pro` |
-| Simcity dev box | `ubuntu@51.222.105.190` | Reach from the MacBook; hostname `local-compute-01` |
+| Odin controller | `jakob@100.118.239.121` | Runs builds, monorepo, SDK test, Docker, and h2c bridge |
+| MacBook SSH-agent source | `jakob@100.75.136.81` | Supplies the 1Password-managed node key with `ssh -A` |
+| Simcity dev box | `ubuntu@51.222.105.190` | Reach directly from Odin; hostname `local-compute-01` |
 | Dev-box machine ID | `d65f25f351114245be681fc3b1380b3d` | Verify from node logs/state before issuing a token |
 | Monorepo root | `/home/jakob/inngest-work/monorepo` | Many feature workspaces may exist beside it |
 | Simcity root | `/home/jakob/inngest-work/simcity` | Use a clean workspace for the revision under test |
 | JS SDK root | `/home/jakob/inngest-work/inngest-js` | Use a compatible local package, never a registry package |
 
-Connectivity checks:
+Private node keys stay in the MacBook's 1Password SSH agent. Start the Odin
+controller session from the Mac and keep it open:
 
 ```sh
-ssh -o BatchMode=yes jakob@100.75.136.81 'hostname; whoami'
-ssh -o BatchMode=yes jakob@100.75.136.81 \
-  "ssh -o BatchMode=yes ubuntu@51.222.105.190 'hostname; whoami'"
+ssh -A jakob@100.118.239.121
 ```
 
-Normal `ssh` through the Mac is intentional. A direct `ProxyJump` from the
-Linux host may fail because the dev-box key exists on the Mac, not locally.
+In that forwarded Odin shell, publish the session's ephemeral agent socket at
+a stable path. Repeat this after every Mac-to-Odin reconnect because OpenSSH
+creates a new socket for each session:
+
+```sh
+forwarded_sock=$SSH_AUTH_SOCK
+stable_sock=$HOME/.ssh/mac-forwarded-agent.sock
+test -S "$forwarded_sock"
+test "$forwarded_sock" != "$stable_sock"
+install -d -m 700 "$HOME/.ssh"
+ln -sfn "$forwarded_sock" "$stable_sock"
+SSH_AUTH_SOCK="$stable_sock" ssh-add -l
+```
+
+Codex may have started before agent forwarding, so never rely on its inherited
+`SSH_AUTH_SOCK`. Every shell tool call that runs `ssh`, `scp`, or Ansible must
+set the stable socket explicitly; exports from one tool call do not carry into
+the next:
+
+```sh
+stable_sock=/home/jakob/.ssh/mac-forwarded-agent.sock
+test "$(hostname)" = odin
+test -S "$stable_sock"
+command -v docker nix jj pnpm
+SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
+  ubuntu@51.222.105.190 'hostname; whoami'
+```
+
+Run the rest of this workflow on Odin. Also verify `hostname`, required tools,
+and direct dev-box access before changing anything. If `test -S` fails, stop
+and ask Jakob to reconnect with `ssh -A` and refresh the stable link. Do not
+search `/tmp` for agent sockets. Do not copy private keys to Odin, install
+1Password there, or forward the agent onward to the dev box.
 
 ## Safety rules
 
@@ -167,7 +197,7 @@ systemctl --user set-property --runtime docker.service \
 Inventory the dev box before changing it:
 
 ```sh
-ssh jakob@100.75.136.81 "ssh ubuntu@51.222.105.190 '
+ssh ubuntu@51.222.105.190 '
   sudo systemctl list-units --all --type=service "simcity*" --no-pager
   sudo systemctl cat simcity-node 2>/dev/null || true
   sudo find /etc/simcity -maxdepth 2 -type f -print
@@ -177,36 +207,32 @@ ssh jakob@100.75.136.81 "ssh ubuntu@51.222.105.190 '
   ip -brief addr
   ip route
   ps auxww | grep -E "[s]imcity|[c]loud-hypervisor" || true
-'"
+'
 ```
 
 Record checksums for any binary, config, image, and state that may be replaced.
 
 ## 3. Build the artifacts under test
 
-Build the EROFS from the Simcity source under test:
+Build and validate a complete matched artifact set from the Simcity source
+under test:
 
 ```sh
-make overlay-rootfs
-sha256sum artifacts/overlay.erofs
-ls -lh artifacts/overlay.erofs
+make artifacts-amd64 build-amd64
+sha256sum \
+  artifacts/initramfs.cpio.gz \
+  artifacts/overlay.erofs \
+  artifacts/vmlinux \
+  bin/simcity-node-amd64 \
+  bin/guest-ebpf-probe
 nix shell nixpkgs#erofs-utils -c fsck.erofs artifacts/overlay.erofs
+go test ./cmd/simcity-init ./cmd/simcity-node/internal/checks ./pkg/runner/...
 ```
 
-Build a matching static node binary when node code or protocol compatibility
-matters:
-
-```sh
-make build-amd64
-sha256sum bin/simcity-node-amd64
-```
-
-The dev box can normally reuse its existing kernel, initramfs, Cloud Hypervisor,
-AF_XDP setup, and ZFS pool. Rebuild/deploy `kernel-amd64` and
-`boot-bundle-amd64` only when those layers are under test or incompatible.
-
-For package/rootfs tests, deploy the new EROFS while keeping the known-compatible
-node/control-plane binary pair.
+Record the revision and all five hashes. Building on Odin avoids Docker Desktop
+and Darwin pseudo-terminal failures. Deploy only the layers relevant to the
+test, but always build the node after the verified kernel and initramfs so its
+embedded boot bundle matches the candidate.
 
 ## 4. Start the bounded local monorepo stack
 
@@ -350,27 +376,18 @@ Choose an unused tunnel port, for example `18094`. Avoid existing ports such as
 `18090` or `18093` unless their owners are understood and intentionally removed.
 
 ```sh
-# Linux host -> MacBook
 ssh -fNT -o ExitOnForwardFailure=yes \
   -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
   -R 127.0.0.1:18094:127.0.0.1:28091 \
-  jakob@100.75.136.81
-
-# MacBook -> dev box
-ssh jakob@100.75.136.81 \
-  'ssh -fNT -o ExitOnForwardFailure=yes \
-    -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
-    -R 127.0.0.1:18094:127.0.0.1:18094 \
-    ubuntu@51.222.105.190'
+  ubuntu@51.222.105.190
 ```
 
 Result:
 
 ```text
 dev box 127.0.0.1:18094
-  -> Mac 127.0.0.1:18094
-  -> Linux 127.0.0.1:28091 h2c bridge
-  -> Linux 127.0.0.1:28090 API
+  -> Odin 127.0.0.1:28091 h2c bridge
+  -> Odin 127.0.0.1:28090 API
 ```
 
 ## 6. Issue and transfer a fresh bootstrap token
@@ -398,22 +415,21 @@ rm -f "$response"
 chmod 600 /tmp/simcity-remote-bootstrap-token
 ```
 
-Transfer local -> Mac -> dev box, compare SHA-256 at each hop, install mode
-`0600`, and remove every transfer copy after installation.
+Transfer Odin -> dev box with `scp`, compare SHA-256 before installation,
+install mode `0600`, and remove every transfer copy after installation.
 
 ## 7. Deploy the remote node and image
 
-Transfer large EROFS files compressed through both SSH hops:
+Transfer large EROFS files compressed directly from Odin:
 
 ```sh
 zstd -T0 -3 -c artifacts/overlay.erofs |
-  ssh jakob@100.75.136.81 \
-    'ssh ubuntu@51.222.105.190 \
-      "zstd -d -c > /tmp/simcity-e2e-overlay.erofs"'
+  ssh ubuntu@51.222.105.190 \
+    'zstd -d -c > /tmp/simcity-e2e-overlay.erofs'
 ```
 
-Transfer the node binary and token through the Mac with `scp`. Verify all
-hashes on the dev box before installation.
+Transfer the node binary, guest probe, and token directly with `scp`. Verify
+all hashes on the dev box before installation.
 
 Use dedicated paths:
 

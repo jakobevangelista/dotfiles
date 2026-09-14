@@ -81,7 +81,7 @@ host.
 | Symptom | Likely cause | Focused fix |
 |---|---|---|
 | `http2: frame too large` during handshake | Node h2c client reached HTTP/1.1 API directly | Route through the h2c bridge |
-| Handshake timeout | Broken reverse tunnel or h2c proxy | Check listeners on Linux, Mac, and dev box |
+| Handshake timeout | Broken reverse tunnel or h2c proxy | Check listeners on Odin and the dev box |
 | No intended Iroh session | Wrong key, global key collision, or simcityd offline | Use a fresh matching secret/public pair and inspect both ends |
 | `unauthorized peer` | Node credentials belong to another control plane/key | Issue a fresh token and clear only E2E node state |
 | Node is ready but placement fails | Warm template is not ready | Inspect `warm_vcpu`, `warm_capacity`, and pool logs |

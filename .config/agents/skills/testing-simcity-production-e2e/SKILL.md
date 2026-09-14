@@ -1,7 +1,7 @@
 ---
 name: testing-simcity-production-e2e
 description: "Safely rolls out and tests Simcity candidates on production bare-metal nodes through the Simcity repository's Ansible bundle and the production Inngest API. Use for production Simcity rollout inspection, canary deployment, SDK E2E validation, networking, rootfs, package, or node changes."
-compatibility: "Requires a Simcity checkout with infra/ansible, SSH through Jakob's MacBook, production credentials, a local inngest-js checkout on the Mac, and kubectl access to production EKS."
+compatibility: "Requires Odin with Linux, Nix, Ansible Core, SOPS, the pinned Ansible collections, Simcity and inngest-js checkouts, production AWS SSO and kubectl access, and a 1Password SSH agent forwarded from Jakob's MacBook."
 ---
 
 # Testing Simcity Against Production
@@ -9,13 +9,15 @@ compatibility: "Requires a Simcity checkout with infra/ansible, SSH through Jako
 Use this workflow for production rollout and real SDK validation:
 
 ```text
-local SDK tarball on MacBook
-            │
-            ▼
-https://api.inngest.com
-            │ Iroh
-            ▼
-production Simcity node ──▶ Cloud Hypervisor/KVM guest
+MacBook 1Password agent ──ssh -A──▶ Odin controller
+                                      ├── Ansible/SSH ──▶ production Simcity node
+                                      ├── SDK ──▶ https://api.inngest.com
+                                      └── AWS CLI/kubectl ──▶ production EKS
+
+https://api.inngest.com ──Iroh──▶ production Simcity node
+                                      │
+                                      ▼
+                             Cloud Hypervisor/KVM guest
 ```
 
 The Simcity repository's `infra/ansible` bundle is the source of truth for
@@ -29,7 +31,8 @@ Verify these values before each operation.
 
 | Role | Address/path |
 |---|---|
-| MacBook jump/test host | `jakob@100.75.136.81` |
+| Odin build/Ansible/test controller | `jakob@100.118.239.121` |
+| MacBook SSH-agent source | `jakob@100.75.136.81` |
 | Production node 1 | `ubuntu@67.213.115.17` (`prod-sandbox-lat-iad-1`) |
 | Production node 2 | `ubuntu@45.250.254.57` (`prod-sandbox-lat-iad-2`) |
 | Node 1 machine ID | `fd355cbb62214c27bbab4337a9d970da` |
@@ -37,15 +40,50 @@ Verify these values before each operation.
 | Production Kubernetes context | `arn:aws:eks:us-east-2:836356947314:cluster/main` |
 | Production API | `https://api.inngest.com` |
 | Simcity deployment bundle | `<simcity-checkout>/infra/ansible` |
-| Mac SDK checkouts | `/Users/jakob/inngest-work/inngest-js*` |
+| Odin SDK checkouts | `/home/jakob/inngest-work/inngest-js*` |
 
-The SSH keys live on the Mac:
+Private node keys stay in the MacBook's 1Password SSH agent. Start the
+controller session from the Mac and keep it open:
 
 ```sh
-ssh -o BatchMode=yes jakob@100.75.136.81 'hostname; whoami'
-ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@67.213.115.17 'hostname'"
-ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@45.250.254.57 'hostname'"
+ssh -A jakob@100.118.239.121
 ```
+
+In that forwarded Odin shell, publish the session's ephemeral agent socket at
+a stable path. Repeat this after every Mac-to-Odin reconnect because OpenSSH
+creates a new socket for each session:
+
+```sh
+forwarded_sock=$SSH_AUTH_SOCK
+stable_sock=$HOME/.ssh/mac-forwarded-agent.sock
+test -S "$forwarded_sock"
+test "$forwarded_sock" != "$stable_sock"
+install -d -m 700 "$HOME/.ssh"
+ln -sfn "$forwarded_sock" "$stable_sock"
+SSH_AUTH_SOCK="$stable_sock" ssh-add -l
+```
+
+Codex may have started before agent forwarding, so never rely on its inherited
+`SSH_AUTH_SOCK`. Every shell tool call that runs `ssh`, `scp`, or Ansible must
+set the stable socket explicitly; exports from one tool call do not carry into
+the next:
+
+```sh
+stable_sock=/home/jakob/.ssh/mac-forwarded-agent.sock
+test "$(hostname)" = odin
+test -S "$stable_sock"
+command -v ansible-playbook sops aws kubectl
+SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
+  ubuntu@67.213.115.17 'hostname; whoami'
+SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
+  ubuntu@45.250.254.57 'hostname; whoami'
+```
+
+Run the rest of this workflow on Odin. Also verify `hostname`, required tools,
+and direct node connectivity before using Ansible. If `test -S` fails, stop
+and ask Jakob to reconnect with `ssh -A` and refresh the stable link. Do not
+search `/tmp` for agent sockets. Do not copy private keys to Odin, install
+1Password there, or forward the agent onward to a node.
 
 ## Non-negotiable safety rules
 
@@ -73,32 +111,28 @@ ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@45.250.254.57 'hostname'"
   SOPS values, or AWS session values outside mode-0600 temporary files.
 - Use a clean dedicated `jj` workspace for the exact candidate revision.
 
-## 1. Inspect production control-plane access
+## 1. Inspect production control-plane access from Odin
 
-If noninteractive Mac SSH sessions need production AWS credentials, ask Jakob
-to run this in an interactive Mac terminal:
-
-```sh
-aws-vault exec prod -- sh -c '
-  umask 077
-  env | grep "^AWS_" > /tmp/amp-prod-aws.env
-  aws sts get-caller-identity >/dev/null
-'
-```
-
-Use the handoff without printing it and require AWS account `836356947314`:
+Authenticate the AWS CLI on Odin. Device authorization may be completed in the
+MacBook browser, but credentials and Kubernetes commands remain on Odin:
 
 ```sh
-ssh jakob@100.75.136.81 '
-  set -a; . /tmp/amp-prod-aws.env; set +a
-  aws sts get-caller-identity
-  kubectl --context arn:aws:eks:us-east-2:836356947314:cluster/main \
-    get pods -A -o wide | grep -Ei "simcity|app-api|executor" || true
-'
+aws sso login --profile prod --use-device-code --no-browser
+export AWS_PROFILE=prod
+
+account=$(aws sts get-caller-identity --query Account --output text)
+test "$account" = 836356947314
 ```
 
-If `aws` exits 253, the handoff is absent or expired. Ask for a refresh; do
-not retry interactive `aws-vault` through SSH.
+Use the explicit production context:
+
+```sh
+kubectl --context arn:aws:eks:us-east-2:836356947314:cluster/main \
+  get pods -A -o wide | grep -Ei 'simcity|app-api|executor' || true
+```
+
+If SSO expires, repeat `aws sso login` on Odin. Never export AWS credentials
+to a handoff file or send them through SSH.
 
 ## 2. Inventory both production nodes
 
@@ -137,7 +171,7 @@ From the intended Simcity checkout:
 ```sh
 jj status
 jj log -r '@ | @-' --no-graph -n 2
-make build-amd64
+make artifacts-amd64 build-amd64
 sha256sum \
   artifacts/initramfs.cpio.gz \
   artifacts/overlay.erofs \
@@ -152,6 +186,7 @@ Then validate the Simcity-specific Ansible bundle:
 
 ```sh
 cd infra/ansible
+ansible-galaxy collection install -r requirements.yml
 tests/check.sh
 ansible-playbook -i inventories/prod/hosts.yml site.yml --syntax-check
 ansible-playbook -i inventories/prod/hosts.yml site.yml \
@@ -214,20 +249,18 @@ Only after the first node is healthy and any requested canary test passes:
 Do not change inventory, config, or files between nodes unless investigating a
 real host-specific difference.
 
-## 6. Pack the exact SDK revision on the Mac
+## 6. Pack the exact SDK revision on Odin
 
 Use the updated local SDK required by the feature, not the latest registry
 package by default:
 
 ```sh
-ssh jakob@100.75.136.81 '
-  cd /path/to/inngest-js
-  jj status
-  jj log -r "@ | @-" --no-graph -n 2
-  pnpm install --frozen-lockfile
-  pnpm run local:pack
-  shasum -a 256 packages/inngest/inngest.tgz
-'
+cd /home/jakob/inngest-work/inngest-js
+jj status
+jj log -r '@ | @-' --no-graph -n 2
+pnpm install --frozen-lockfile
+pnpm run local:pack
+sha256sum packages/inngest/inngest.tgz
 ```
 
 Create a disposable app under `/tmp`, copy in the existing SDK E2E app without
@@ -289,7 +322,7 @@ Simcity assertions.
 ## 8. Run and correlate the E2E
 
 Before creating the sandbox, confirm both nodes are healthy and empty. Run on
-the Mac inside the disposable app:
+Odin inside the disposable app:
 
 ```sh
 set -a
@@ -323,8 +356,8 @@ Known production behavior to account for, not hide:
 
 Confirm both production nodes are active, connected, READY, and report no
 remaining test workloads or sandbox processes. Remove disposable SDK apps,
-temporary tarball copies, `/tmp/simcity-prod-sdk.env`, and expired
-`/tmp/amp-prod-aws.env` when they are no longer needed.
+temporary tarball copies, and `/tmp/simcity-prod-sdk.env` when it is no longer
+needed.
 
 Report:
 

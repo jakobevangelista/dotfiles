@@ -1,7 +1,7 @@
 ---
 name: testing-simcity-staging-e2e
 description: "Deploys and tests Simcity candidates on staging bare-metal nodes through the Simcity repository's Ansible bundle and the staging Inngest API. Use for staging validation of Simcity node, boot bundle, rootfs, networking, packages, SDK, or REST changes."
-compatibility: "Requires a Simcity checkout with infra/ansible, SSH through Jakob's MacBook, staging credentials, a local inngest-js checkout on the Mac, and kubectl access to staging EKS."
+compatibility: "Requires Odin with Linux, Nix, Ansible Core, SOPS, the pinned Ansible collections, Simcity and inngest-js checkouts, staging AWS SSO and kubectl access, and a 1Password SSH agent forwarded from Jakob's MacBook."
 ---
 
 # Testing Simcity Against Staging
@@ -9,13 +9,15 @@ compatibility: "Requires a Simcity checkout with infra/ansible, SSH through Jako
 Test the real staging path:
 
 ```text
-local SDK tarball on MacBook
-            │
-            ▼
-https://api.inngest.net
-            │ Iroh
-            ▼
-staging Simcity node ──▶ Cloud Hypervisor/KVM guest
+MacBook 1Password agent ──ssh -A──▶ Odin controller
+                                      ├── Ansible/SSH ──▶ staging Simcity node
+                                      ├── SDK ──▶ https://api.inngest.net
+                                      └── AWS CLI/kubectl ──▶ staging EKS
+
+https://api.inngest.net ──Iroh──▶ staging Simcity node
+                                      │
+                                      ▼
+                             Cloud Hypervisor/KVM guest
 ```
 
 Use the Simcity repository's `infra/ansible` bundle for node deployment. Do
@@ -30,7 +32,8 @@ Verify all values before use.
 
 | Role | Address/path |
 |---|---|
-| MacBook jump/test host | `jakob@100.75.136.81` |
+| Odin build/Ansible/test controller | `jakob@100.118.239.121` |
+| MacBook SSH-agent source | `jakob@100.75.136.81` |
 | Latitude staging node | `ubuntu@103.106.59.67` (`latitude-compute-1`) |
 | OVH staging node | `ubuntu@51.222.46.206` (`ovh-compute-1`) |
 | Dev box in staging inventory | `ubuntu@51.222.105.190` (`ovh-local-1`) |
@@ -39,15 +42,50 @@ Verify all values before use.
 | Staging API | `https://api.inngest.net` |
 | Staging ingest | `https://stage.inn.gs` |
 | Simcity deployment bundle | `<simcity-checkout>/infra/ansible` |
-| Mac SDK checkouts | `/Users/jakob/inngest-work/inngest-js*` |
+| Odin SDK checkouts | `/home/jakob/inngest-work/inngest-js*` |
 
-The node SSH keys live on the Mac. Reach nodes through it:
+Private node keys stay in the MacBook's 1Password SSH agent. Start the
+controller session from the Mac and keep it open:
 
 ```sh
-ssh -o BatchMode=yes jakob@100.75.136.81 'hostname; whoami'
-ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@103.106.59.67 'hostname'"
-ssh jakob@100.75.136.81 "ssh -o BatchMode=yes ubuntu@51.222.46.206 'hostname'"
+ssh -A jakob@100.118.239.121
 ```
+
+In that forwarded Odin shell, publish the session's ephemeral agent socket at
+a stable path. Repeat this after every Mac-to-Odin reconnect because OpenSSH
+creates a new socket for each session:
+
+```sh
+forwarded_sock=$SSH_AUTH_SOCK
+stable_sock=$HOME/.ssh/mac-forwarded-agent.sock
+test -S "$forwarded_sock"
+test "$forwarded_sock" != "$stable_sock"
+install -d -m 700 "$HOME/.ssh"
+ln -sfn "$forwarded_sock" "$stable_sock"
+SSH_AUTH_SOCK="$stable_sock" ssh-add -l
+```
+
+Codex may have started before agent forwarding, so never rely on its inherited
+`SSH_AUTH_SOCK`. Every shell tool call that runs `ssh`, `scp`, or Ansible must
+set the stable socket explicitly; exports from one tool call do not carry into
+the next:
+
+```sh
+stable_sock=/home/jakob/.ssh/mac-forwarded-agent.sock
+test "$(hostname)" = odin
+test -S "$stable_sock"
+command -v ansible-playbook sops aws kubectl
+SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
+  ubuntu@103.106.59.67 'hostname; whoami'
+SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
+  ubuntu@51.222.46.206 'hostname; whoami'
+```
+
+Run the rest of this workflow on Odin. Also verify `hostname`, required tools,
+and direct node connectivity before using Ansible. If `test -S` fails, stop
+and ask Jakob to reconnect with `ssh -A` and refresh the stable link. Do not
+search `/tmp` for agent sockets. Do not copy private keys to Odin, install
+1Password there, or forward the agent onward to a node.
 
 ## Safety boundaries
 
@@ -79,6 +117,7 @@ From the intended Simcity checkout:
 jj status
 jj log -r '@ | @-' --no-graph -n 2
 cd infra/ansible
+ansible-galaxy collection install -r requirements.yml
 sed -n '1,180p' inventories/staging/hosts.yml
 ansible-playbook -i inventories/staging/hosts.yml site.yml --syntax-check
 tests/check.sh
@@ -108,26 +147,26 @@ enrollment tasks appear.
 
 ## 2. Inspect staging before changes
 
-If later SSH sessions need staging AWS credentials, ask Jakob to run this on
-the Mac without exposing values:
+Authenticate the AWS CLI on Odin. Device authorization may be completed in the
+MacBook browser, but credentials and Kubernetes commands remain on Odin:
 
 ```sh
-aws-vault exec stage -- sh -c '
-  umask 077
-  env | grep "^AWS_" > /tmp/amp-stage-aws.env
-  aws sts get-caller-identity >/dev/null
-'
+aws sso login --profile stage --use-device-code --no-browser
+export AWS_PROFILE=stage
+
+account=$(aws sts get-caller-identity --query Account --output text)
+test "$account" = 909933634258
 ```
 
-Then inspect staging health:
+Use the explicit staging context and inspect health:
 
 ```sh
-ssh jakob@100.75.136.81 '
-  set -a; . /tmp/amp-stage-aws.env; set +a
-  kubectl --context arn:aws:eks:us-east-2:909933634258:cluster/main \
-    -n inngest get deploy,statefulset,pods -o wide
-'
+kubectl --context arn:aws:eks:us-east-2:909933634258:cluster/main \
+  -n inngest get deploy,statefulset,pods -o wide
 ```
+
+If SSO expires, repeat `aws sso login` on Odin. Never export AWS credentials
+to a handoff file or send them through SSH.
 
 On each real staging node, record:
 
@@ -171,9 +210,10 @@ go test ./cmd/simcity-init ./cmd/simcity-node/internal/checks ./pkg/runner/...
 
 Record the Simcity commit and all five hashes. `simcity-node-amd64` embeds the
 kernel and initramfs, so those two artifacts must exist before building the
-node. If the artifacts are built on one machine and Ansible runs on another,
-transfer all three files under `artifacts/`, verify their hashes on the
-controller, and rerun `make build-amd64` there so the final binary embeds the
+node. The normal workflow builds and runs Ansible on Odin; do not relay
+artifacts through the MacBook. If an exceptional build uses another Linux
+machine, transfer all three files under `artifacts/`, verify their hashes on
+Odin, and rerun `make build-amd64` there so the final binary embeds the
 verified kernel and initramfs with the intended build tag.
 
 Before deploying, compare the candidate hashes with every target. Understand
@@ -232,19 +272,17 @@ client list reports no leaked workload
 
 Do not deploy the second node until the canary passes the real SDK E2E.
 
-## 5. Pack the intended SDK on the Mac
+## 5. Pack the intended SDK on Odin
 
 Use the exact SDK revision needed by the change, not a registry package:
 
 ```sh
-ssh jakob@100.75.136.81 '
-  cd /path/to/inngest-js
-  jj status
-  jj log -r "@ | @-" --no-graph -n 2
-  pnpm install --frozen-lockfile
-  pnpm run local:pack
-  shasum -a 256 packages/inngest/inngest.tgz
-'
+cd /home/jakob/inngest-work/inngest-js
+jj status
+jj log -r '@ | @-' --no-graph -n 2
+pnpm install --frozen-lockfile
+pnpm run local:pack
+sha256sum packages/inngest/inngest.tgz
 ```
 
 Copy the existing SDK test app to a disposable `/tmp` directory. Install the
@@ -298,9 +336,9 @@ does not validate the candidate.
 After the canary passes, repeat inventory, empty-workload check, Ansible deploy,
 idempotence run, health checks, and focused E2E for the second staging node.
 
-Always remove disposable SDK apps, credential handoff files, and temporary
-logs. Confirm both staging nodes are active, READY, and have no leaked test
-workloads. Report retained candidate artifacts explicitly.
+Always remove disposable SDK apps, mode-0600 SDK credential files, and
+temporary logs. Confirm both staging nodes are active, READY, and have no
+leaked test workloads. Report retained candidate artifacts explicitly.
 
 Final reporting must include Simcity and SDK commits, artifact/tarball hashes,
 Ansible inventory/limits used, nodes changed, placement evidence, assertions,
