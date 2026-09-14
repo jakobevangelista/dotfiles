@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/update-ai-tools.sh *)"
+    ]
+  }
+}
