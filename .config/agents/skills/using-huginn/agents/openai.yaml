@@ -1,0 +1,5 @@
+interface:
+  display_name: "Use Huginn VMs"
+  short_description: "Operate Odin's disposable Huginn VMs"
+  default_prompt: "Use $using-huginn to create and inspect a disposable Huginn VM on Odin safely."
+

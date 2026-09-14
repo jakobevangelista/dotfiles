@@ -161,14 +161,14 @@ No Nix command runs in this flow.
 
 ## Host Networking
 
-Odin keeps NetworkManager for `enp1s0`. VM-side networking is managed separately.
+Odin keeps NetworkManager for `enp6s0`. VM-side networking is managed separately.
 
 - bridge: `virbr0`
 - bridge address: `10.88.0.1/24`
 - TAP pattern: `th-*`
 - DHCP range: `10.88.0.100` through `10.88.0.250`
 - DHCP lease file: `/var/lib/huginn/dnsmasq.leases`
-- outbound NAT: `virbr0` to `enp1s0`
+- outbound NAT: `virbr0` to `enp6s0`
 - firewall on `virbr0`: UDP `53`, UDP `67`, TCP `53`
 
 ## Nix Store Overlay
