@@ -232,7 +232,8 @@
     useRoutingFeatures = "none";
     extraSetFlags = [
       "--accept-dns=true"
-      "--accept-routes=false"
+      # Ashburn Kubernetes APIs use IPv6 subnets advertised by work bastions.
+      "--accept-routes=true"
       "--advertise-exit-node=false"
       "--advertise-routes="
       "--ssh=true" # Tailnet identity authenticates SSH on the Tailscale IP.

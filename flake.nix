@@ -55,6 +55,9 @@
     {
       packages.${linuxSystem} = {
         cloud-tools = linuxPkgs.callPackage ./pkgs/cloud-tools { };
+        datadog-pup = linuxPkgs.callPackage ./pkgs/datadog-pup { };
+        pscale = linuxPkgs.callPackage ./pkgs/pscale { };
+        work = linuxPkgs.callPackage ./pkgs/work { };
 
         inherit (aiUpdaters)
           update-ai-tools
