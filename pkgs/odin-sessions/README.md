@@ -85,6 +85,18 @@ databases stay private to each host. A fresh guest without the expected Codex
 SQLite index can discover IDs from transcript metadata. Do not share live
 SQLite databases or overwrite guest databases with the backup.
 
+For Codex versions that use a shared daemon, restore starts/checks that daemon
+before creating panes. A package-installation or daemon-start failure aborts
+the restore with its error instead of leaving failed Codex launches in every
+window. Each launch pins the checked Codex executable so an older tmux-server
+PATH cannot select a different package. Explicit `--no-daemon` snapshots skip
+the shared-server check.
+
+After a partial restore, keep the original snapshot. Do not replace it with a
+snapshot of failed shells. Finish active work and close the partial sessions
+before retrying; restore deliberately skips sessions that already exist.
+Use `--snapshot PATH` to select the original backup explicitly.
+
 The script restores tmux workspace state, not running computations, pending
 tool calls, SSH connections, or unsent terminal input. Unsupported programs
 reopen as shells and are listed in the snapshot notes. Current supported
@@ -110,6 +122,9 @@ application, interrupting it with Ctrl+C, or a startup failure returns to that
 shell instead of closing the pane or its window. Restore temporarily disables
 window renumbering while placing saved indexes, then inherits the configured
 policy again. Automatic window naming also follows the user's tmux settings.
+Saved dimensions are used only to reconstruct pane layouts. Restore clears
+the manual sizing override created by `resize-window`, so windows inherit the
+configured `window-size` policy and resize when clients attach or change size.
 
 Older restores replaced their pane's shell with the application. Updating the
 tool does not change those already-running processes. They can be protected

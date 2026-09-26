@@ -161,8 +161,12 @@ def pane_program(pane, children, meta, notes):
         if len(ids) == 1 and ids[0] in meta:
             row = meta[ids[0]]
             if Path(row['rollout_path']).is_file():
+                argv = ['codex', 'resume', ids[0], '--yolo']
+                if any(p['comm'] in ('codex', '.codex-wrapped')
+                       and '--no-daemon' in p['args'] for _, p in children):
+                    argv.append('--no-daemon')
                 return dict(kind='codex', thread_id=ids[0], cwd=row['cwd'],
-                            argv=['codex', 'resume', ids[0], '--yolo', '-C', row['cwd']])
+                            argv=argv + ['-C', row['cwd']])
         notes.append(f"{pane['key']}: Codex ID could not be uniquely verified; restore opens a shell.")
     elif command == 'amp':
         candidates = [p for _, p in children if p['comm'] in ('amp', '.amp-wrapped')
@@ -378,8 +382,16 @@ def remap_layout(layout, mapping):
 
 
 def launch_command(root, pane):
-    return shlex.join([sys.executable, str(Path(__file__).resolve()), 'launch',
-                       '--snapshot', str(root), '--pane', pane['id']])
+    argv = [sys.executable, str(Path(__file__).resolve()), 'launch',
+            '--snapshot', str(root), '--pane', pane['id']]
+    if pane['program']['kind'] == 'codex':
+        # New shells can inherit an older PATH from the tmux server. Launch
+        # the exact executable checked by restore, even for old snapshots.
+        executable = shutil.which(program_argv(pane['program'])[0])
+        if not executable:
+            raise RuntimeError('Codex executable disappeared after preflight')
+        argv += ['--codex', str(Path(executable).resolve())]
+    return shlex.join(argv)
 
 
 def program_argv(program):
@@ -396,6 +408,27 @@ def agent_processes():
     return [(pid, proc) for pid, proc in processes().items()
             if proc['comm'] in ('codex', '.codex-wrapped', 'amp', '.amp-wrapped')
             and 'app-server' not in proc['args']]
+
+
+def prepare_codex(programs):
+    """Fail before creating panes if a required shared daemon cannot start."""
+    executables = {str(Path(shutil.which(program_argv(p)[0])).resolve())
+                   for p in programs if p['kind'] == 'codex'
+                   and '--no-daemon' not in program_argv(p)}
+    for executable in sorted(executables):
+        try:
+            # Older CLIs do not use a shared daemon. Explicit no-daemon
+            # snapshots also retain their original startup mode.
+            help_text = run([executable, 'resume', '--help'], timeout=10)
+            if '--no-daemon' in help_text:
+                run([executable, 'app-server', 'daemon', 'start'], timeout=45)
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            detail = getattr(exc, 'stderr', None) or str(exc)
+            if isinstance(detail, bytes):
+                detail = detail.decode(errors='replace')
+            raise RuntimeError('Codex startup check failed; no panes created. '
+                               'Fix the Codex package before retrying restore:\n'
+                               + detail.strip()[:2000]) from exc
 
 
 def preflight(panes, root, shells_only=False):
@@ -430,6 +463,7 @@ def preflight(panes, root, shells_only=False):
             directory = root / 'editors' / str(program['pid'])
             if not all((directory / name).is_file() for name in ('session.vim', 'buffers.json')):
                 raise RuntimeError('Saved editor state is incomplete; no panes created.')
+    prepare_codex(programs)
 
 
 def restore(args):
@@ -514,6 +548,10 @@ def restore(args):
                 tmux('select-pane', '-t', active_pane, socket=args.socket)
             if window['zoomed']:
                 tmux('resize-pane', '-Z', '-t', wid, socket=args.socket)
+            # resize-window implicitly sets window-size=manual. The saved
+            # dimensions are only needed to reconstruct the pane layout;
+            # afterward inherit the user's policy for attached clients.
+            tmux('set-window-option', '-u', '-t', wid, 'window-size', socket=args.socket)
             if window['active']:
                 selected = wid
         if selected:
@@ -522,7 +560,7 @@ def restore(args):
         # Normal naming/numbering policy belongs to the user's tmux config.
         tmux('set-option', '-u', '-t', name, 'renumber-windows', socket=args.socket)
         print(f'Restored {name}: {len(session["windows"])} windows')
-    print(f'Restored workspace; started {launched} programs. Attach with: tmux attach')
+    print(f'Restored workspace; queued {launched} program launches. Attach with: tmux attach')
 
 
 def launch(args):
@@ -541,6 +579,8 @@ def launch(args):
                 'lua dofile(' + json.dumps(str(CODE / 'restore-buffers.lua')) + ')']
     else:
         argv = program_argv(program)
+        if program['kind'] == 'codex' and getattr(args, 'codex', None):
+            argv[0] = args.codex
     print(f'Restored {pane["key"]}: {shlex.join(argv)}', flush=True)
     os.execvp(argv[0], argv)
 
@@ -683,6 +723,7 @@ def main():
             sub.add_argument('--handoff', action='store_true', help='Confirm source CLI sessions are closed and allow cross-host agent restoration')
         if command == 'launch':
             sub.add_argument('--pane', required=True)
+            sub.add_argument('--codex', help=argparse.SUPPRESS)
     sub = subs.add_parser('send', help='Verify and transfer a snapshot from Odin without starting destination agents')
     sub.add_argument('target', choices=['muninn'])
     sub.add_argument('--snapshot', help='Snapshot directory; defaults to latest')

@@ -5,6 +5,9 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+import shlex
+import subprocess
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import rescue
@@ -58,6 +61,55 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(rescue.program_argv(amp),amp['argv'])
         self.program['argv'].append('--dangerously-bypass-approvals-and-sandbox')
         self.assertNotIn('--yolo',rescue.program_argv(self.program))
+
+    def test_launch_uses_the_checked_codex_even_with_an_older_shell_path(self):
+        fixed = self.root/'codex-fixed'
+        fixed.touch()
+        with patch.object(rescue.shutil,'which',return_value=str(fixed)):
+            command=shlex.split(rescue.launch_command(self.root,self.pane))
+        self.assertEqual(command[-2:],['--codex',str(fixed)])
+        data={'sessions':[{'windows':[{'panes':[self.pane]}]}]}
+        args=SimpleNamespace(snapshot=None,pane='%7',codex=str(fixed))
+        with patch.object(rescue,'load_snapshot',return_value=(self.root,data)), \
+             patch.object(rescue.os,'chdir'),patch.object(rescue.os,'execvp') as execute, \
+             contextlib.redirect_stdout(io.StringIO()):
+            rescue.launch(args)
+        self.assertEqual(execute.call_args.args[0],str(fixed))
+        self.assertEqual(execute.call_args.args[1][1:3],['resume',self.thread])
+
+    def test_daemon_failure_aborts_restore_before_creating_any_panes(self):
+        args=SimpleNamespace(snapshot=None,dry_run=False,shells_only=False,
+                             handoff=False,socket=None,prefix='')
+        data=dict(host=os.uname().nodename,boot_id='previous-boot',
+                  sessions=[dict(name='test',windows=[dict(panes=[self.pane])])])
+        error=subprocess.CalledProcessError(1,['codex'],stderr='package differs from running executable')
+        with patch.object(rescue,'load_snapshot',return_value=(self.root,data)), \
+             patch.object(rescue,'codex_metadata',return_value=self.meta), \
+             patch.object(rescue,'agent_processes',return_value=[]), \
+             patch.object(rescue.shutil,'which',return_value='/bin/codex'), \
+             patch.object(rescue,'run',side_effect=['--no-daemon',error]), \
+             patch.object(rescue,'tmux',return_value='') as tmux:
+            with self.assertRaisesRegex(RuntimeError,'Codex startup check failed; no panes created'):
+                rescue.restore(args)
+        tmux.assert_called_once_with('list-sessions','-F','#{session_name}',socket=None)
+
+    def test_no_daemon_snapshots_do_not_start_a_shared_server(self):
+        self.program['argv'].append('--no-daemon')
+        with patch.object(rescue,'run') as run:
+            rescue.prepare_codex([self.program])
+        run.assert_not_called()
+
+    def test_snapshot_preserves_explicit_no_daemon_mode(self):
+        self.proc['args']=['codex','resume',self.thread,'--no-daemon']
+        program=rescue.pane_program(self.pane,[(os.getpid(),self.proc)],self.meta,[])
+        self.assertIn('--no-daemon',program['argv'])
+
+    def test_older_codex_without_daemon_support_only_checks_help(self):
+        with patch.object(rescue.shutil,'which',return_value='/bin/codex'), \
+             patch.object(rescue,'run',return_value='resume a saved session') as run:
+            rescue.prepare_codex([self.program])
+        self.assertEqual(run.call_count,1)
+        self.assertEqual(run.call_args.args[0][1:],['resume','--help'])
 
     def test_verified_process_can_recover_closed_history_descriptor(self):
         self.save_mapping()

@@ -24,7 +24,10 @@ class TmuxRestoreTests(unittest.TestCase):
         self.sleep = shutil.which('sleep')
         if not all((shutil.which('tmux'), self.shell, self.sleep)):
             self.skipTest('tmux, bash, and sleep are required')
-        self.environment = dict(os.environ, HOME=str(self.root), SHELL=self.shell)
+        # Shell exit after kill-server must not race temporary-directory
+        # cleanup by recreating .bash_history.
+        self.environment = dict(os.environ, HOME=str(self.root), SHELL=self.shell,
+                                HISTFILE='/dev/null')
         self.environment.pop('TMUX', None)
         self.environment.pop('TMUX_PANE', None)
         self.environment.pop('BASH_ENV', None)
@@ -111,6 +114,35 @@ class TmuxRestoreTests(unittest.TestCase):
                                       'restored', 'renumber-windows'), 'on')
         self.assertEqual(self.command('show-option', '-wAv', '-t',
                                       pane, 'automatic-rename'), 'on')
+
+    def test_restored_window_inherits_configured_size_policy(self):
+        self.command('set-option', '-gw', 'window-size', 'largest')
+        pane = self.restore_program([self.sleep, '60'])
+        self.assertEqual(self.command('show-option', '-wAv', '-t',
+                                      pane, 'window-size'), 'largest')
+        # A later global change must still reach the restored window.
+        self.command('set-option', '-gw', 'window-size', 'latest')
+        self.assertEqual(self.command('show-option', '-wAv', '-t',
+                                      pane, 'window-size'), 'latest')
+
+    def test_restored_window_resizes_when_client_attaches_and_changes_size(self):
+        self.command('set-option', '-gw', 'window-size', 'latest')
+        pane = self.restore_program([self.sleep, '60'])
+        self.command('set-option', '-t', 'restored', 'status', 'off')
+        client = subprocess.Popen(
+            ['tmux', '-S', str(self.socket), '-f', '/dev/null', '-C',
+             'attach-session', '-t', 'restored'],
+            env=self.environment, stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+        )
+        self.addCleanup(lambda: client.communicate('detach-client\n', timeout=5))
+        self.wait_for(lambda: self.command('list-clients', '-F', '#{client_name}'))
+        name = self.command('list-clients', '-F', '#{client_name}')
+        for width, height in [(132, 41), (101, 33)]:
+            self.command('refresh-client', '-t', name, '-C', f'{width},{height}')
+            self.wait_for(lambda: self.command(
+                'display-message', '-p', '-t', pane,
+                '#{window_width}x#{window_height}') == f'{width}x{height}')
 
 
 if __name__ == '__main__':
