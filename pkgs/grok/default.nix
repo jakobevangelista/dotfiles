@@ -6,14 +6,14 @@
 
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "grok";
-  version = "1.0.41";
+  version = "1.0.46";
 
   src = fetchurl {
     urls = [
       "https://x.ai/cli/grok-${finalAttrs.version}-linux-x86_64"
       "https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-${finalAttrs.version}-linux-x86_64"
     ];
-    hash = "sha256-nOA+0j4W6gEHK0SWJj1iE6J4meHj4QfwCNNu34LnBAc=";
+    hash = "sha256-QWJqUykjJBQLklVrnUL/VULj3NBK/4Xq+4aJ3UrbRPw=";
   };
 
   dontUnpack = true;
