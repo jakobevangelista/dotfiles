@@ -91,6 +91,40 @@ host.
 | Event accepted but function never runs | Missing constraint APIs, state proxy, or app network | Start `extra` services and run app on `inngest_internal` |
 | ZFS template cannot be removed | It still has allocation clones | Destroy E2E allocation clones before the E2E template |
 | Host approaches OOM | Missing limits or unrelated large workload | Check every `mem_limit`, Docker `MemoryMax`, and host memory |
+| Host disk shrinks rapidly | Unbounded container logs, an error loop, or retained volumes | Stop the disposable project before the host loses its final 20 GiB; inspect per-container log paths and project volumes |
+
+## Bounded local-stack retention
+
+Ordinarily tear the local stack down in the same turn. If the user explicitly
+requests retaining it after the final test, first clean every remote E2E
+service, VM, sandbox, tunnel, and token copy. Retain only the local stack, with
+its verified memory limits and ClickHouse-specific no-restart/bounded-log
+override, for at most six hours. Preserve the restart policy of every other
+service.
+
+Keep the rendered Compose file mode `0600` and arm a scoped teardown timer:
+
+```sh
+docker_bin=$(command -v docker)
+test -x "$docker_bin"
+test -s /tmp/simcity-remote-e2e-compose.json
+
+systemd-run --user \
+  --unit=simcity-remote-e2e-expiry \
+  --on-active=6h \
+  --collect \
+  "$docker_bin" compose \
+    -p simcity-remote-e2e \
+    -f /tmp/simcity-remote-e2e-compose.json \
+    down -v --remove-orphans
+
+systemctl --user is-active simcity-remote-e2e-expiry.timer
+systemctl --user status simcity-remote-e2e-expiry.timer --no-pager
+```
+
+Report the UTC expiry and the exact timer name. Renewal requires an explicit
+user request: stop the old timer, inspect disk/resource state, and arm a fresh
+timer. A later conversation must not silently adopt or renew the lease.
 
 ## Scoped cleanup
 
@@ -106,8 +140,10 @@ host.
    kill only those PIDs.
 7. Stop `simcity-remote-h2c-proxy.service`.
 8. Tear down only the `simcity-remote-e2e` Compose project and its volumes.
-9. Remove or explicitly report retained remote image/config/binary/state.
-10. Forget disposable clean `jj` workspaces only after checking for changes.
+9. Cancel any retention-expiry timer after successful manual cleanup.
+10. Remove the generated Compose safety/base files after teardown.
+11. Remove or explicitly report retained remote image/config/binary/state.
+12. Forget disposable clean `jj` workspaces only after checking for changes.
 
 Compose teardown, run from the temporary monorepo workspace:
 
@@ -119,10 +155,17 @@ docker compose -p simcity-remote-e2e \
   -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-state-proxy-e2e.yml \
   -f /home/jakob/inngest-work/.snapshot-e2e/compose-memory-cap.yml \
   -f /tmp/simcity-remote-iroh.yml \
+  -f /tmp/simcity-remote-e2e-clickhouse-safety.json \
   down -v --remove-orphans
 
 systemctl --user stop simcity-remote-h2c-proxy.service
-rm -f /tmp/simcity-remote-iroh.env /tmp/simcity-remote-iroh.yml
+systemctl --user stop simcity-remote-e2e-expiry.timer 2>/dev/null || true
+rm -f \
+  /tmp/simcity-remote-iroh.env \
+  /tmp/simcity-remote-iroh.yml \
+  /tmp/simcity-remote-e2e-compose-base.json \
+  /tmp/simcity-remote-e2e-compose.json \
+  /tmp/simcity-remote-e2e-clickhouse-safety.json
 ```
 
 If root-owned bind-mount files prevent workspace removal, remove only those
@@ -141,6 +184,7 @@ docker volume ls --format '{{.Name}}' | grep '^simcity-remote-e2e' || true
 ss -ltnp | grep -E '28091|18094' || true
 docker compose ls
 free -h
+df -h /
 ```
 
 On the dev box, require the E2E service inactive, no matching listener, and no

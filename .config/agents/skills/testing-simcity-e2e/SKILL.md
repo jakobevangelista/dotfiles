@@ -1,7 +1,6 @@
 ---
 name: testing-simcity-e2e
 description: "Runs a real full-stack Simcity sandbox E2E from Odin with a local monorepo control plane and JavaScript SDK against the remote Ubuntu KVM dev box. Use when validating Simcity node, rootfs, sandbox REST v2, networking, or SDK changes end to end."
-compatibility: "Requires Odin with Linux, Docker, Nix, jj, pnpm, a 1Password SSH agent forwarded from Jakob's MacBook, direct SSH access to the Ubuntu Simcity dev box, and enough memory for a stack capped below 20 GiB."
 ---
 
 # Testing Simcity End to End
@@ -9,6 +8,10 @@ compatibility: "Requires Odin with Linux, Docker, Nix, jj, pnpm, a 1Password SSH
 Run the real path from a local SDK through a local monorepo control plane to a
 remote Simcity node and KVM guest. Do not substitute a fake node when the goal
 is to validate a base image, guest behavior, AF_XDP, ZFS, or Cloud Hypervisor.
+
+This workflow requires Odin with Linux, Docker, Nix, jj, pnpm, a 1Password SSH
+agent forwarded from Jakob's MacBook, direct SSH access to the Ubuntu Simcity
+dev box, and enough memory and disk for the bounded local stack.
 
 ```text
 local JS SDK
@@ -39,7 +42,9 @@ At minimum, prove all of the following:
    cleaned up.
 
 Capture revisions, artifact hashes, command output, node status, memory limits,
-and cleanup state in the final report.
+disk headroom, and cleanup state in the final report. A request to retain the
+environment while more testing is pending expires when that testing finishes;
+it does not authorize leaving the stack running after the final result.
 
 ## Machine defaults
 
@@ -181,10 +186,16 @@ half to the remote dev box.
 
 ## 2. Inventory the local host and remote node
 
-Confirm the local cap and avoid OOMs:
+Confirm the local caps and avoid exhausting memory or disk. Require at least
+40 GiB free on `/` before starting a fresh full stack; clean only scoped stale
+E2E resources or stop and report the shortfall rather than consuming the last
+usable space:
 
 ```sh
 free -h
+df -h /
+available_bytes=$(df --output=avail -B1 / | tail -n 1)
+test "$available_bytes" -ge $((40 * 1024 * 1024 * 1024))
 docker compose ls
 docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
 systemctl --user show docker.service \
@@ -291,37 +302,75 @@ EOF
 Run this from the compatible monorepo whose module contains `go-iroh`. Never
 print or commit the generated env file.
 
-Render and verify hard limits before startup:
+Render the selected stack once, then use the skill's safety filter to override
+only the exact Compose service named `clickhouse`. That service has repeatedly
+filled Odin through an unbounded error-loop log and must not inherit
+`restart: always`. Preserve every other service's authored restart and logging
+behavior; some control-plane services rely on automatic restart during E2E.
 
 ```sh
-docker compose -p simcity-remote-e2e \
-  --env-file /tmp/simcity-remote-iroh.env \
-  -f compose-base.yml -f compose-local.yml --profile min \
-  -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-e2e.yml \
-  -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-state-proxy-e2e.yml \
-  -f /home/jakob/inngest-work/.snapshot-e2e/compose-memory-cap.yml \
-  -f /tmp/simcity-remote-iroh.yml \
+compose_args=(
+  -p simcity-remote-e2e
+  --env-file /tmp/simcity-remote-iroh.env
+  -f compose-base.yml -f compose-local.yml --profile min
+  -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-e2e.yml
+  -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-state-proxy-e2e.yml
+  -f /home/jakob/inngest-work/.snapshot-e2e/compose-memory-cap.yml
+  -f /tmp/simcity-remote-iroh.yml
+)
+
+umask 077
+docker compose "${compose_args[@]}" config --format json \
+  >/tmp/simcity-remote-e2e-compose-base.json
+jq -f /home/jakob/.codex/skills/testing-simcity-e2e/scripts/clickhouse-safety-overlay.jq \
+  /tmp/simcity-remote-e2e-compose-base.json \
+  >/tmp/simcity-remote-e2e-clickhouse-safety.json
+docker compose "${compose_args[@]}" \
+  -f /tmp/simcity-remote-e2e-clickhouse-safety.json \
   config --format json >/tmp/simcity-remote-e2e-compose.json
 
-jq '{services:(.services|length),
-     gib:([.services[].mem_limit|tonumber]|add/1073741824),
-     missing:[.services|to_entries[]|
-       select((.value.mem_limit//0)==0)|.key]}' \
+jq -e --slurpfile base /tmp/simcity-remote-e2e-compose-base.json '
+  ([.services[].mem_limit | tonumber] | add) < (20 * 1024 * 1024 * 1024) and
+  all(.services[]; (.mem_limit | tonumber) > 0) and
+  .services.clickhouse.restart == "no" and
+  .services.clickhouse.logging.driver == "local" and
+  .services.clickhouse.logging.options["max-size"] == "20m" and
+  .services.clickhouse.logging.options["max-file"] == "3" and
+  ((.services | del(.clickhouse)) ==
+   ($base[0].services | del(.clickhouse)))
+' \
   /tmp/simcity-remote-e2e-compose.json
 ```
 
-Require `missing: []` and a total below 20 GiB. Then start without pulling:
+The ClickHouse-only override trades its unlimited log history and automatic
+restart for a hard log bound and visible failure: three 20 MiB local-driver
+files. The equality assertion proves the override did not change any other
+service. Do not broaden this policy to unrelated containers.
+
+Start the exact verified configuration without pulling:
 
 ```sh
-docker compose -p simcity-remote-e2e \
-  --env-file /tmp/simcity-remote-iroh.env \
-  -f compose-base.yml -f compose-local.yml --profile min \
-  -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-e2e.yml \
-  -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-state-proxy-e2e.yml \
-  -f /home/jakob/inngest-work/.snapshot-e2e/compose-memory-cap.yml \
-  -f /tmp/simcity-remote-iroh.yml \
+docker compose "${compose_args[@]}" \
+  -f /tmp/simcity-remote-e2e-clickhouse-safety.json \
   up -d --pull never
+
+clickhouse_ids=($(docker ps -q \
+  --filter label=com.docker.compose.project=simcity-remote-e2e \
+  --filter label=com.docker.compose.service=clickhouse))
+test "${#clickhouse_ids[@]}" -eq 1
+docker inspect "${clickhouse_ids[@]}" | jq -e '
+  all(.[];
+    .HostConfig.RestartPolicy.Name == "no" and
+    .HostConfig.LogConfig.Type == "local" and
+    .HostConfig.LogConfig.Config["max-size"] == "20m" and
+    .HostConfig.LogConfig.Config["max-file"] == "3")
+'
 ```
+
+During a long run, recheck `df -h /`, `docker system df`, container health, and
+project log/volume growth at meaningful phase boundaries. Stop and diagnose
+the disposable project if free space approaches 20 GiB or a service enters a
+rapid error loop; do not let the test consume the host's final headroom.
 
 Expected host endpoints with the existing overlay:
 
@@ -595,3 +644,14 @@ not an optional follow-up. At minimum, destroy the SDK sandbox, stop the remote
 E2E node and its VM, remove token copies and both tunnels, stop the h2c bridge,
 remove only this Compose project and its volumes, and verify no matching
 listener/container/volume/VM remains. Leave unrelated services untouched.
+
+Retain the memory-bounded local Compose stack after the final test only when
+the user explicitly asks for post-test retention. Always destroy workload
+sandboxes, remote E2E VMs/services, tunnels, and token copies before the final
+report; a future unattended timer cannot rely on the forwarded SSH agent to
+clean them.
+For an explicitly retained local stack, give it a maximum six-hour renewable
+lease using the procedure in `references/dev-box.md`, then report the project
+name, expiry, exact cleanup command, and disk usage. If the cleanup timer cannot
+be installed and verified, tear down before the final report. Never silently
+adopt or extend a retained stack in a later conversation.
