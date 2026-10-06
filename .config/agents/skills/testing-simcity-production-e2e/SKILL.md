@@ -1,10 +1,13 @@
 ---
 name: testing-simcity-production-e2e
-description: "Safely rolls out and tests Simcity candidates on production bare-metal nodes through the Simcity repository's Ansible bundle and the production Inngest API. Use for production Simcity rollout inspection, canary deployment, SDK E2E validation, networking, rootfs, package, or node changes."
-compatibility: "Requires Odin with Linux, Nix, Ansible Core, SOPS, the pinned Ansible collections, Simcity and inngest-js checkouts, production AWS SSO and kubectl access, and a 1Password SSH agent forwarded from Jakob's MacBook."
+description: "Inspect, onboard, roll out, and test production Simcity bare-metal nodes through the Simcity repository's Ansible bundle and production API. Use for fleet additions, host readiness and profile sizing, production canaries, and SDK E2E validation."
 ---
 
 # Testing Simcity Against Production
+
+Requires Odin with Linux, Nix, Ansible Core, SOPS, the pinned Ansible
+collections, Simcity and inngest-js checkouts, production AWS SSO and kubectl
+access, and a 1Password SSH agent forwarded from Jakob's MacBook.
 
 Use this workflow for production rollout and real SDK validation:
 
@@ -25,9 +28,16 @@ production node artifacts, config, systemd lifecycle, inventories, checksums,
 and validation. Do not manually recreate the rollout with `scp`, ad hoc
 symlink swaps, or rewritten configuration when the bundle supports it.
 
+For a **new machine or fleet addition**, read
+[onboarding.md](references/onboarding.md). It covers read-only hardware
+inspection, access requirements, profile sizing, and first installation.
+The numbered workflow below is for updating already-provisioned nodes.
+
 ## Topology
 
-Verify these values before each operation.
+Verify these values against the intended revision's production inventory and
+live control-plane node list before each operation. This table is a baseline,
+not a fixed fleet size; a proposed machine is not an enrolled node.
 
 | Role | Address/path |
 |---|---|
@@ -35,6 +45,7 @@ Verify these values before each operation.
 | MacBook SSH-agent source | `jakob@100.75.136.81` |
 | Production node 1 | `ubuntu@67.213.115.17` (`prod-sandbox-lat-iad-1`) |
 | Production node 2 | `ubuntu@45.250.254.57` (`prod-sandbox-lat-iad-2`) |
+| Candidate awaiting provisioning (inspected 2026-10-02) | `root@66.165.235.34`; see [inspection record](references/onboarding.md#candidate-inspected-2026-10-02) |
 | Node 1 machine ID | `fd355cbb62214c27bbab4337a9d970da` |
 | Node 2 machine ID | `425a613b96d6404481c2f493f8002a84` |
 | Production Kubernetes context | `arn:aws:eks:us-east-2:836356947314:cluster/main` |
@@ -81,13 +92,14 @@ SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
 
 Run the rest of this workflow on Odin. Also verify `hostname`, required tools,
 and direct node connectivity before using Ansible. If `test -S` fails, stop
-and ask Jakob to reconnect with `ssh -A` and refresh the stable link. Do not
+SSH-dependent work and ask Jakob to reconnect with `ssh -A` and refresh the
+stable link; continue independent repository inspection. Do not
 search `/tmp` for agent sockets. Do not copy private keys to Odin, install
 1Password there, or forward the agent onward to a node.
 
 ## Non-negotiable safety rules
 
-- Production starts read-only. Inventory both nodes, control-plane health,
+- Production starts read-only. Inventory the current fleet, control-plane health,
   active workloads, and artifact hashes before proposing commands.
 - Never stop/restart a service, deploy artifacts, destroy a workload, clear a
   pool, or alter production configuration without explicit user approval.
@@ -95,8 +107,9 @@ search `/tmp` for agent sockets. Do not copy private keys to Odin, install
   node is not approval for the second.
 - Deploy one node at a time with an explicit `--limit`. The playbook is
   `serial: 1`, but the limit prevents accidental scope expansion.
-- Immediately before each deployment, require `client list --json` to show no
-  active workloads. Investigate workload creation time and most recent state.
+- Immediately before each deployment to an installed node, require
+  `client list --json` to show no active workloads. Investigate workload creation
+  time and most recent state.
   Do not treat age alone as permission to destroy it.
 - Preserve `/var/lib/simcity-node/control-plane-credentials.json`; routine
   artifact updates do not require re-enrollment.
@@ -134,7 +147,7 @@ kubectl --context arn:aws:eks:us-east-2:836356947314:cluster/main \
 If SSO expires, repeat `aws sso login` on Odin. Never export AWS credentials
 to a handoff file or send them through SSH.
 
-## 2. Inventory both production nodes
+## 2. Inventory the production fleet
 
 For each node, capture service state, machine ID, workload list, artifact
 targets/hashes, ZFS health, relevant processes, and recent lifecycle logs:
@@ -193,13 +206,16 @@ ansible-playbook -i inventories/prod/hosts.yml site.yml \
   --tags deploy --limit prod-sandbox-lat-iad-1 --list-tasks
 ```
 
-The production inventory must map only:
+The original production inventory maps:
 
 ```text
 prod-sandbox-lat-iad-1 -> 67.213.115.17
 prod-sandbox-lat-iad-2 -> 45.250.254.57
 simcity_control_plane_url -> https://api.inngest.com/
 ```
+
+Reconcile additional hosts with their approved onboarding records and the live
+node list. Always pass one explicit host limit, including after fleet growth.
 
 The deploy task list may discover the active uplink and update the node,
 guest probe, EROFS image, config, and unit. Stop if it includes kernel,
@@ -235,9 +251,10 @@ and an empty workload list. Preserve logs for any failure before rollback.
 Rollback uses the previously recorded complete artifact set and existing
 Ansible configuration. Never restore only one component of node/probe/image.
 
-## 5. Roll out the second node
+## 5. Roll out the remaining approved nodes
 
-Only after the first node is healthy and any requested canary test passes:
+Only after the first node is healthy and any requested canary test passes,
+repeat for each remaining approved host. For the original second node:
 
 1. Re-inspect workloads on node 2.
 2. Run `--check --diff --limit prod-sandbox-lat-iad-2`.
@@ -321,8 +338,8 @@ Simcity assertions.
 
 ## 8. Run and correlate the E2E
 
-Before creating the sandbox, confirm both nodes are healthy and empty. Run on
-Odin inside the disposable app:
+Before creating the sandbox, confirm the rollout targets are healthy and empty.
+Run on Odin inside the disposable app:
 
 ```sh
 set -a
@@ -332,8 +349,8 @@ export NODE_ENV=production
 pnpm exec tsx scripts/simcityProdSdkE2E.ts
 ```
 
-Capture the sandbox ID and create duration. Search journald on both nodes for
-that exact ID to prove placement, launch, guest operations, and cleanup:
+Capture the sandbox ID and create duration. Search journald on eligible fleet
+nodes for that exact ID to prove placement, launch, guest operations, and cleanup:
 
 ```sh
 sudo journalctl -u simcity-node --since '15 minutes ago' --no-pager \
@@ -354,7 +371,7 @@ Known production behavior to account for, not hide:
 
 ## 9. Final cleanup and report
 
-Confirm both production nodes are active, connected, READY, and report no
+Confirm the affected production nodes are active, connected, READY, and report no
 remaining test workloads or sandbox processes. Remove disposable SDK apps,
 temporary tarball copies, and `/tmp/simcity-prod-sdk.env` when it is no longer
 needed.
@@ -367,6 +384,6 @@ Report:
 - pre-deploy workload state and approvals;
 - nodes changed and idempotence result;
 - sandbox ID, placement evidence, assertions, and create duration;
-- cleanup evidence on both nodes;
+- cleanup evidence on the affected nodes;
 - unrelated API/SDK failures separately;
 - any feature not actually covered by the deployed production API.
