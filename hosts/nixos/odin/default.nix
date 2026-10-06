@@ -107,6 +107,12 @@ in
     };
   };
 
+  # Codex iOS probes the OS with PATH=/usr/bin:/bin before starting Codex.
+  # Expose uname there so the probe can identify NixOS as Linux.
+  systemd.tmpfiles.rules = [
+    "L+ /usr/bin/uname - - - - ${pkgs.coreutils}/bin/uname"
+  ];
+
   services.tailscale = {
     enable = true;
     openFirewall = true;
