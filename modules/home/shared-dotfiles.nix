@@ -68,6 +68,10 @@ in
       source = ../../.config/agents/skills/using-inngest-prod-kubernetes;
       force = true;
     };
+    ".codex/skills/managing-odin-storage" = {
+      source = ../../.config/agents/skills/managing-odin-storage;
+      force = true;
+    };
 
     ".config/opencode/opencode.jsonc" = {
       source = ../../.config/opencode/opencode.jsonc;

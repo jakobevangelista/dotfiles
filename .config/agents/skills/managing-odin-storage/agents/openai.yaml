@@ -1,0 +1,5 @@
+interface:
+  display_name: "Managing Odin Storage"
+  short_description: "Diagnose and safely reclaim Odin disk space"
+  default_prompt: "Use $managing-odin-storage to inspect Odin disk usage and recommend safe, scoped cleanup."
+
