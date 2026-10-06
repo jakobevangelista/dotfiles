@@ -10,6 +10,14 @@ let
   macWifiIp = "10.0.0.230";
   macEthernetIp = "10.0.0.236";
   dockerLoopbackDefaults = {
+    # Rootless Docker cannot reach systemd-resolved's host-loopback stub at
+    # 127.0.0.53 from its network namespace. Use Odin's upstream resolvers so
+    # container builds and workloads can resolve public names after boot.
+    dns = [
+      "75.75.75.75"
+      "75.75.76.76"
+    ];
+
     # Require an explicit host address for containers that should be reachable
     # from the LAN or tailnet.
     ip = "127.0.0.1";

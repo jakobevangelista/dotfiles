@@ -11,6 +11,43 @@ Kubernetes tools. Datadog Pup is packaged explicitly: nixpkgs' `pup` is an
 unrelated HTML tool. PlanetScale is pinned to the version used for the
 2026-09-18 Insights investigation.
 
+## Network recovery, 2026-09-28
+
+After Odin rebooted, Muninn was started with the intentional temporary jump-box
+profile. SSH to `10.88.0.10` and DNS through Odin worked, but outbound HTTPS
+timed out. Odin's default route used `enp7s0`; the installed VM NAT and
+forwarding rules still selected `enp6s0`. The shared bridge configuration is
+in `hosts/nixos/odin/huginn-vms.nix` and serves both Muninn and Huginn.
+
+A temporary host repair added three rules, tagged
+`muninn-egress-repair-20260928`, for Muninn's `10.88.0.10/32` address only:
+outbound masquerading through `enp7s0`, forwarding from `virbr0` to `enp7s0`,
+and established/related return traffic. No host input ports were opened.
+The rules can be removed with
+`sudo bash /tmp/muninn-egress-repair.USgAwl/repair.sh rollback` while that
+temporary script remains available. Remove them only after the persistent
+firewall configuration has been activated, then recheck guest HTTPS.
+
+The persistent NAT interface correction to `enp7s0` was activated on Odin at
+17:21 UTC. The firewall reload succeeded, and both the active system and the
+system profile point to
+`/nix/store/42qyxfi3ifpllsrshn9r3x0zgdd3mwxy-nixos-system-odin-26.05.20260514.8a1b012`.
+The installed forwarding and masquerade commands both use `enp7s0`. The sudo
+journal also records execution of the temporary `finish.sh` cleanup helper;
+removal of the workaround rules was not independently inspected because that
+read requires sudo. Post-switch guest HTTPS, work-tailnet connectivity, and
+an authenticated Pup query passed. Muninn kept the same running VM process.
+Temporary rules do not survive a host reboot. The separate reset of jump-box
+resource overrides on Odin reboot is intentional.
+
+With egress restored, Muninn rejoined the `inngest.com` work tailnet and Pup
+refreshed its saved Datadog token automatically. GCP separately requires
+`work login gcp` because its saved session needs browser reauthentication.
+The initial Tailscale `NoState` and Pup authentication errors while egress was
+broken were not evidence that their saved identities had been lost.
+Muninn was left running at 2 vCPUs / 4 GiB; no guest rebuild was needed for
+this host networking repair.
+
 ## Verified setup, 2026-09-26
 
 Home Manager is active (`Result=success`) and the installed `work` helper

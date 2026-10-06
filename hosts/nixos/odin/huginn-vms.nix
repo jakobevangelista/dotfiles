@@ -34,7 +34,7 @@ in
   networking = {
     nat = {
       enable = true;
-      externalInterface = "enp6s0";
+      externalInterface = "enp7s0";
       internalInterfaces = [ bridgeName ];
     };
 
