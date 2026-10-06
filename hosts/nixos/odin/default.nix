@@ -1,5 +1,6 @@
 {
   config,
+  lib,
   pkgs,
   ...
 }:
@@ -20,10 +21,16 @@ in
 {
   imports = [
     ./hardware-configuration.nix
+    ./storage.nix
     ./nvidia.nix
     ./huginn-vms.nix
     ./muninn-vm.nix
   ];
+
+  # The 990 PRO has unique partition GUIDs. Mount by those GUIDs so its
+  # filesystem IDs can be changed without making the next boot depend on them.
+  fileSystems."/".device = lib.mkForce "/dev/disk/by-partuuid/7244bb27-d9a8-4ae2-9cfa-84713937d78c";
+  fileSystems."/boot".device = lib.mkForce "/dev/disk/by-partuuid/0e291fee-b464-4939-9ed3-1e091c23c1a9";
 
   nixpkgs.config.allowUnfree = true;
   nix.settings.experimental-features = [
