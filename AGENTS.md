@@ -18,7 +18,7 @@ This repo manages Jakob's dotfiles across macOS and NixOS.
 - Odin intentionally uses Nix packages through Home Manager/NixOS.
 - Neovim, tmux, OpenCode, Starship, and `tmux-sessionizer` are shared between hosts.
 - Ghostty is macOS-only.
-- macOS targets have different account names: `jakobs-goated-inngest-macbook` uses `jakobevangelista`; `jakob-temp-macbook-pro` uses `jakobtest`. Choose the matching host; do not rename accounts or home folders to fit a configuration.
+- macOS targets have different account names: `jakobs-goated-inngest-macbook` uses `jakob` (`/Users/jakob`, verified on the returned Mac); `jakob-temp-macbook-pro` uses `jakobtest`. Choose the matching host; do not rename accounts or home folders to fit a configuration.
 - Do not remove generated hardware config from `hosts/nixos/odin/hardware-configuration.nix` unless replacing it with a freshly generated one from Odin.
 
 ## Safe Workflow

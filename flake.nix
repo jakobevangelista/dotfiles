@@ -121,7 +121,9 @@
         };
 
       darwinConfigurations."jakobs-goated-inngest-macbook" = mkDarwin {
-        username = "jakobevangelista";
+        username = "jakob";
+        manageCodexWithHomebrew = false;
+        extraModules = [ ./hosts/darwin/development.nix ];
       };
 
       darwinConfigurations."jakob-temp-macbook-pro" = mkDarwin {

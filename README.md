@@ -60,7 +60,7 @@ the existing accounts; rebuilding does not rename an account or move its home.
 
 | Flake target | Account / home | Host additions |
 | --- | --- | --- |
-| `jakobs-goated-inngest-macbook` | `jakobevangelista` / `/Users/jakobevangelista` | Original Mac configuration |
+| `jakobs-goated-inngest-macbook` | `jakob` / `/Users/jakob` | Returned main Mac; shared development additions below; preserves standalone Codex |
 | `jakob-temp-macbook-pro` | `jakobtest` / `/Users/jakobtest` | 1Password SSH agent and CLI, Geist Mono Nerd Font, Node 24, OpenCode; preserves standalone Codex in `~/.local/bin` |
 
 ### SSH with 1Password (new Mac)
@@ -72,10 +72,12 @@ GitHub/server authorizations. Alternatively, generate an Ed25519 key in 1Passwor
 and add its **public** key to [GitHub](https://github.com/settings/keys) and any servers.
 Private keys stay outside this repository.
 
-The new Mac target writes `~/.ssh/config` with 1Password's agent socket. After
+Both Mac targets write `~/.ssh/config` with 1Password's agent socket. After
 activation, run `ssh -T git@github.com` and approve the 1Password prompt. Successful
 GitHub authentication prints a greeting and exits with status 1 (there is no shell).
 See the [1Password SSH guide](https://www.1password.dev/ssh/get-started).
+
+The `ovh-vps` SSH shortcut connects to `ubuntu@100.77.149.90` over Tailscale.
 
 If 1Password has already generated `~/.ssh/config`, preserve it as a backup before
 the first switch so Home Manager can take ownership of that path.
@@ -306,8 +308,9 @@ sudo darwin-rebuild switch --flake "path:$HOME/dotfiles#$host"
 ```
 
 This rebuilds everything: system packages, Homebrew, shell config, and dotfile symlinks.
-Shared changes apply to either Mac on its next rebuild. Settings in
-`hosts/darwin/jakob-temp-macbook-pro.nix` apply only to the new Mac target.
+Shared changes apply to either Mac on its next rebuild. Both Mac targets import
+`hosts/darwin/development.nix` for 1Password SSH/CLI, Geist Mono Nerd Font,
+Node 24, and OpenCode. The temporary host retains its own module for future overrides.
 
 Karabiner's entire `~/.config/karabiner` directory is linked to the tracked
 directory because Karabiner does not support linking `karabiner.json` by itself.
