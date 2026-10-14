@@ -1,657 +1,182 @@
 ---
 name: testing-simcity-e2e
-description: "Runs a real full-stack Simcity sandbox E2E from Odin with a local monorepo control plane and JavaScript SDK against the remote Ubuntu KVM dev box. Use when validating Simcity node, rootfs, sandbox REST v2, networking, or SDK changes end to end."
+description: "Runs real full-stack Simcity sandbox E2Es with the monorepo control plane and JavaScript SDK in a VM on the Ubuntu KVM dev box, with Odin-hosted control plane available as an alternative. Use for Simcity node, rootfs, sandbox REST v2, networking, or SDK validation."
 ---
 
 # Testing Simcity End to End
 
-Run the real path from a local SDK through a local monorepo control plane to a
-remote Simcity node and KVM guest. Do not substitute a fake node when the goal
-is to validate a base image, guest behavior, AF_XDP, ZFS, or Cloud Hypervisor.
+## Choose the topology
 
-This workflow requires Odin with Linux, Docker, Nix, jj, pnpm, a 1Password SSH
-agent forwarded from Jakob's MacBook, direct SSH access to the Ubuntu Simcity
-dev box, and enough memory and disk for the bounded local stack.
+**Default: control-plane VM on the dev box.** Run the monorepo services, SDK
+test, h2c enrollment proxy, and disposable S3 store inside that VM. Run
+`simcity-node` and its real KVM sandbox guests on the bare-metal host. Odin
+orchestrates SSH and may build/package artifacts; it is not a runtime dependency.
+Use [the control-plane VM procedure](references/control-plane-vm.md).
 
-```text
-local JS SDK
-    |
-    v
-local App API -> local simcityd
-                       ^
-                       | Iroh (node-initiated)
-                       |
-              remote simcity-node
-                       |
-                       v
-             Cloud Hypervisor/KVM guest
-```
-
-## Definition of done
-
-At minimum, prove all of the following:
-
-1. The local API and `simcityd` use the intended monorepo revision.
-2. The remote node uses a Simcity revision compatible with that control plane.
-3. The remote node enrolls through the local public handshake endpoint.
-4. The node connects to the intended local `simcityd` over Iroh and heartbeats
-   as `ready` with warm capacity.
-5. A local JavaScript SDK build creates a real sandbox on that node.
-6. The requested commands run inside the KVM guest and return asserted output.
-7. The sandbox is destroyed and temporary local/remote infrastructure is
-   cleaned up.
-
-Capture revisions, artifact hashes, command output, node status, memory limits,
-disk headroom, and cleanup state in the final report. A request to retain the
-environment while more testing is pending expires when that testing finishes;
-it does not authorize leaving the stack running after the final result.
-
-## Machine defaults
-
-These are defaults for Jakob's current development topology. Verify them before
-making changes; do not assume stale host state is safe.
-
-| Role | Address/path | Notes |
-|---|---|---|
-| Odin controller | `jakob@100.118.239.121` | Runs builds, monorepo, SDK test, Docker, and h2c bridge |
-| MacBook SSH-agent source | `jakob@100.75.136.81` | Supplies the 1Password-managed node key with `ssh -A` |
-| Simcity dev box | `ubuntu@51.222.105.190` | Reach directly from Odin; hostname `local-compute-01` |
-| Dev-box machine ID | `d65f25f351114245be681fc3b1380b3d` | Verify from node logs/state before issuing a token |
-| Monorepo root | `/home/jakob/inngest-work/monorepo` | Many feature workspaces may exist beside it |
-| Simcity root | `/home/jakob/inngest-work/simcity` | Use a clean workspace for the revision under test |
-| JS SDK root | `/home/jakob/inngest-work/inngest-js` | Use a compatible local package, never a registry package |
-
-Private node keys stay in the MacBook's 1Password SSH agent. Start the Odin
-controller session from the Mac and keep it open:
-
-```sh
-ssh -A jakob@100.118.239.121
-```
-
-In that forwarded Odin shell, publish the session's ephemeral agent socket at
-a stable path. Repeat this after every Mac-to-Odin reconnect because OpenSSH
-creates a new socket for each session:
-
-```sh
-forwarded_sock=$SSH_AUTH_SOCK
-stable_sock=$HOME/.ssh/mac-forwarded-agent.sock
-test -S "$forwarded_sock"
-test "$forwarded_sock" != "$stable_sock"
-install -d -m 700 "$HOME/.ssh"
-ln -sfn "$forwarded_sock" "$stable_sock"
-SSH_AUTH_SOCK="$stable_sock" ssh-add -l
-```
-
-Codex may have started before agent forwarding, so never rely on its inherited
-`SSH_AUTH_SOCK`. Every shell tool call that runs `ssh`, `scp`, or Ansible must
-set the stable socket explicitly; exports from one tool call do not carry into
-the next:
-
-```sh
-stable_sock=/home/jakob/.ssh/mac-forwarded-agent.sock
-test "$(hostname)" = odin
-test -S "$stable_sock"
-command -v docker nix jj pnpm
-SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
-  ubuntu@51.222.105.190 'hostname; whoami'
-```
-
-Run the rest of this workflow on Odin. Also verify `hostname`, required tools,
-and direct dev-box access before changing anything. If `test -S` fails, stop
-and ask Jakob to reconnect with `ssh -A` and refresh the stable link. Do not
-search `/tmp` for agent sockets. Do not copy private keys to Odin, install
-1Password there, or forward the agent onward to the dev box.
-
-## Safety rules
-
-- This repo uses `jj`; use `jj` whenever `.jj` is present.
-- Never run the test from a dirty feature workspace. Create a disposable clean
-  `jj workspace` at the chosen revision.
-- Inspect existing services, VMs, ZFS datasets, configs, and images before
-  replacement. Only stop or remove them when the user has approved replacing
-  the dev-box node/stack.
-- Never touch unrelated Compose projects such as `music-sync`.
-- Hard-cap the Docker user service at 20 GiB with no swap before stack startup.
-- Give every local `simcityd` a unique Iroh identity. The checked-in shared key
-  can route a node to another developer's control plane through global Iroh
-  discovery.
-- Do not print signing keys, admin credentials, bootstrap tokens, or credential
-  bundles. Print byte counts or truncated hashes instead.
-- Do not commit generated EROFS artifacts. GitHub rejects the current image
-  size and the image must remain reproducible from Nix.
-- Prefer a new E2E service/config/state namespace over overwriting production-
-  shaped paths. Preserve existing config before destructive replacement.
-
-## 1. Select a compatible source set
-
-Protocol drift across the monorepo, Simcity, and SDK is the most common source
-of misleading failures. Do not independently choose the newest revision of
-each repository.
-
-Inspect candidate workspaces:
-
-```sh
-find /home/jakob/inngest-work -maxdepth 1 -type d \
-  \( -name 'monorepo*' -o -name 'simcity*' -o -name 'inngest-js*' \) \
-  -print | sort
-
-jj -R /path/to/monorepo log -r '@ | develop@origin' -n 6 --no-graph \
-  -T 'commit_id.short(12) ++ " " ++ bookmarks ++ " " ++ description.first_line() ++ "\n"'
-jj -R /path/to/simcity log -r '@ | main@origin' -n 6 --no-graph \
-  -T 'commit_id.short(12) ++ " " ++ bookmarks ++ " " ++ description.first_line() ++ "\n"'
-jj -R /path/to/inngest-js log -r '@ | main@origin' -n 6 --no-graph \
-  -T 'commit_id.short(12) ++ " " ++ bookmarks ++ " " ++ description.first_line() ++ "\n"'
-```
-
-Select revisions that share the same protobuf contracts and feature lineage.
-Check changes to these surfaces first:
+**Alternative: control plane on Odin.** Use this whenever the user prefers it,
+for a cross-host network test, resource constraints, troubleshooting, or any
+other practical reason. State the choice and use
+[the Odin procedure](references/odin-control-plane.md). No extra confirmation is
+needed just to choose this mode within an authorized E2E. A failure in the VM
+mode remains part of the result even if the Odin run passes.
 
 ```text
-monorepo/protobuf/simcity/**
-monorepo/pkg/protobuf/simcity/**
-monorepo/pkg/compute/**
-monorepo/cmd/all-in-one/simcityd/**
-simcity/proto/simcity/**
-simcity/proto/gen/simcity/**
-simcity/cmd/simcity-node/internal/nodeapp/**
+Dev box
+  control-plane VM: SDK -> App API -> simcityd + local S3
+                            ^             ^
+                            | enrollment  | authenticated Iroh
+  bare-metal host:          +------ simcity-node
+                                        |
+                                KVM sandbox guests
+```
+
+The VM supplies a separate kernel and network boundary. It shares hardware and
+uplink with the node; do not call it full production/WAN parity. Iroh may select
+a relay. Report the observed transport without assuming same-host means direct
+UDP. Default mode has no SSH tunnels carrying application traffic.
+
+## Access and ownership
+
+| Role | Default |
+|---|---|
+| Odin controller/build host | `jakob@100.118.239.121` |
+| Simcity dev box | `ubuntu@51.222.105.190`, hostname `local-compute-01` |
+| Dev-box machine ID | `d65f25f351114245be681fc3b1380b3d`; verify live |
+| Source repositories | `/home/jakob/inngest-work/{monorepo,simcity,inngest-js}` |
+| Default VM network | host `10.231.75.1/30`, VM `10.231.75.2/30`; verify unused |
+
+Use the forwarded MacBook 1Password agent for Odin-to-dev-box SSH. Explicitly
+set the stable socket in every shell tool call using SSH/SCP/Ansible:
+
+```sh
+export SSH_AUTH_SOCK=/home/jakob/.ssh/mac-forwarded-agent.sock
+test -S "$SSH_AUTH_SOCK"
+ssh -o BatchMode=yes ubuntu@51.222.105.190 'hostname; whoami'
+```
+
+If the socket is missing or authentication fails, ask the user to reconnect
+from their Mac using `ssh -A jakob@100.118.239.121`, run
+`ln -sfn "$SSH_AUTH_SOCK" "$HOME/.ssh/mac-forwarded-agent.sock"` in that session,
+and leave it open. Do not search `/tmp` for alternative agent sockets, copy
+1Password private keys, or forward that agent onward to the dev box. The
+control-plane VM uses a separate disposable SSH key generated on the dev box.
+
+Before changes, inventory both hosts' memory/disk, services, Cloud Hypervisor
+processes, NIC/BPF ownership, routes, and ZFS datasets. Use fresh names for the
+VM, node, Compose project, TAP, nftables table, cgroups, and storage. Do not
+replace an active node/NIC owner without existing authorization; ask only when
+that replacement is actually needed. Preserve unrelated services and files.
+
+## Select and build compatible sources
+
+Use `jj` where `.jj` exists. Start with the requested revision and inspect its
+monorepo/Simcity/SDK compatibility; do not independently select the newest
+revision of all three. Fetch current refs when the task calls for current code.
+Relevant protocol surfaces include:
+
+```text
+monorepo/protobuf/simcity/** and pkg/protobuf/simcity/**
+monorepo/pkg/compute/** and cmd/all-in-one/simcityd/**
+simcity/proto/** and cmd/simcity-node/internal/nodeapp/**
 inngest-js/packages/inngest/src/components/sandbox/**
 ```
 
-Known historical fallback, validated for real sandbox create/exec on this box:
-
-```text
-monorepo: 36447181543665a077f033682d14d21fdddce078
-Simcity:  96f5cb9827e18f31751bc0ec0243d84f32bec88f
-SDK tar:  /home/jakob/inngest-work/.snapshot-e2e/app/inngest-refactor.tgz
-```
-
-Use those only as a compatibility fallback. Prefer a newer pair that has
-already passed focused protocol tests when testing newer behavior.
-
-Create clean workspaces, for example:
+Create disposable clean workspaces rather than building from dirty feature
+workspaces. Normal `jj workspace add` checks out files; do not use
+`--ignore-working-copy` for that operation.
 
 ```sh
-jj -R /path/to/monorepo-source workspace add \
-  --name monorepo-simcity-e2e -r "$MONOREPO_REV" \
-  /home/jakob/inngest-work/monorepo-simcity-e2e
-
-jj -R /path/to/simcity-source workspace add \
-  --name simcity-remote-e2e -r "$SIMCITY_REV" \
-  /home/jakob/inngest-work/simcity-remote-e2e
+jj -R "$MONOREPO_SOURCE" workspace add --name "$MONOREPO_WORKSPACE_NAME" \
+  -r "$MONOREPO_REV" "$MONOREPO_WORKSPACE"
+jj -R "$SIMCITY_SOURCE" workspace add --name "$SIMCITY_WORKSPACE_NAME" \
+  -r "$SIMCITY_REV" "$SIMCITY_WORKSPACE"
 ```
 
-Also read `local-e2e.md` and `scripts/local-simcity-full-stack-e2e.sh`. The
-script is the canonical same-host real-node test; this skill adapts its node
-half to the remote dev box.
+Read the selected monorepo's `local-e2e.md` and
+`scripts/local-simcity-full-stack-e2e.sh` when present for current service
+requirements. Use their real-node path, not a fake-node shortcut.
 
-## 2. Inventory the local host and remote node
-
-Confirm the local caps and avoid exhausting memory or disk. Require at least
-40 GiB free on `/` before starting a fresh full stack; clean only scoped stale
-E2E resources or stop and report the shortfall rather than consuming the last
-usable space:
-
-```sh
-free -h
-df -h /
-available_bytes=$(df --output=avail -B1 / | tail -n 1)
-test "$available_bytes" -ge $((40 * 1024 * 1024 * 1024))
-docker compose ls
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
-systemctl --user show docker.service \
-  -p MemoryCurrent -p MemoryPeak -p MemoryMax -p MemorySwapMax
-
-systemctl --user set-property --runtime docker.service \
-  MemoryMax=20G MemorySwapMax=0
-```
-
-Inventory the dev box before changing it:
-
-```sh
-ssh ubuntu@51.222.105.190 '
-  sudo systemctl list-units --all --type=service "simcity*" --no-pager
-  sudo systemctl cat simcity-node 2>/dev/null || true
-  sudo find /etc/simcity -maxdepth 2 -type f -print
-  sudo find /var/lib/simcity -maxdepth 3 -type f -printf "%p %s bytes\\n"
-  sudo zfs list -o name,used,avail,mountpoint
-  sudo ls -l /dev/kvm
-  ip -brief addr
-  ip route
-  ps auxww | grep -E "[s]imcity|[c]loud-hypervisor" || true
-'
-```
-
-Record checksums for any binary, config, image, and state that may be replaced.
-
-## 3. Build the artifacts under test
-
-Build and validate a complete matched artifact set from the Simcity source
-under test:
+Build the matched Simcity boot bundle before the node binary:
 
 ```sh
 make artifacts-amd64 build-amd64
-sha256sum \
-  artifacts/initramfs.cpio.gz \
-  artifacts/overlay.erofs \
-  artifacts/vmlinux \
-  bin/simcity-node-amd64 \
-  bin/guest-ebpf-probe
+sha256sum artifacts/initramfs.cpio.gz artifacts/overlay.erofs artifacts/vmlinux \
+  bin/simcity-node-amd64 bin/guest-ebpf-probe
 nix shell nixpkgs#erofs-utils -c fsck.erofs artifacts/overlay.erofs
-go test ./cmd/simcity-init ./cmd/simcity-node/internal/checks ./pkg/runner/...
 ```
 
-Record the revision and all five hashes. Building on Odin avoids Docker Desktop
-and Darwin pseudo-terminal failures. Deploy only the layers relevant to the
-test, but always build the node after the verified kernel and initramfs so its
-embedded boot bundle matches the candidate.
-
-## 4. Start the bounded local monorepo stack
-
-Reusable local overlays may exist here:
-
-```text
-/home/jakob/inngest-work/.snapshot-e2e/app/compose-e2e.yml
-/home/jakob/inngest-work/.snapshot-e2e/app/compose-state-proxy-e2e.yml
-/home/jakob/inngest-work/.snapshot-e2e/compose-memory-cap.yml
-/home/jakob/inngest-work/.snapshot-e2e/bin/all-in-one
-```
-
-Verify the all-in-one binary was built from the selected source. Rebuild it if
-its provenance or protocol is uncertain:
-
-```sh
-go build -o /home/jakob/inngest-work/.snapshot-e2e/bin/all-in-one ./cmd/all-in-one
-```
-
-The existing memory overlay bind-mounts that binary and `/nix/store`. Create an
-empty ignored `env.local` if the clean workspace does not contain one.
-
-Generate a fresh Iroh identity before every independently running stack. The
-Compose overlay at `.snapshot-e2e/app/compose-e2e.yml` contains a previously
-used identity and must not be used unchanged when another stack could exist:
-
-```sh
-cat >/tmp/generate-simcity-iroh-key.go <<'EOF'
-package main
-
-import (
-	"encoding/hex"
-	"fmt"
-	"github.com/tmc/go-iroh/key"
-)
-
-func main() {
-	secret, err := key.GenerateSecretKey()
-	if err != nil { panic(err) }
-	seed := secret.Bytes()
-	fmt.Printf("SIMCITY_CONTROL_PLANE_IROH_SECRET_KEY=%s\n", hex.EncodeToString(seed[:]))
-	fmt.Printf("SIMCITY_CONTROL_PLANE_IROH_PUBLIC_KEYS=%s\n", secret.Public().String())
-}
-EOF
-umask 077
-go run /tmp/generate-simcity-iroh-key.go >/tmp/simcity-remote-iroh.env
-cat >/tmp/simcity-remote-iroh.yml <<'EOF'
-services:
-  simcityd:
-    environment:
-      SIMCITY_CONTROL_PLANE_IROH_SECRET_KEY: "${SIMCITY_CONTROL_PLANE_IROH_SECRET_KEY:?}"
-      SIMCITY_CONTROL_PLANE_IROH_PUBLIC_KEYS: "${SIMCITY_CONTROL_PLANE_IROH_PUBLIC_KEYS:?}"
-EOF
-```
-
-Run this from the compatible monorepo whose module contains `go-iroh`. Never
-print or commit the generated env file.
-
-Render the selected stack once, then use the skill's safety filter to override
-only the exact Compose service named `clickhouse`. That service has repeatedly
-filled Odin through an unbounded error-loop log and must not inherit
-`restart: always`. Preserve every other service's authored restart and logging
-behavior; some control-plane services rely on automatic restart during E2E.
-
-```sh
-compose_args=(
-  -p simcity-remote-e2e
-  --env-file /tmp/simcity-remote-iroh.env
-  -f compose-base.yml -f compose-local.yml --profile min
-  -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-e2e.yml
-  -f /home/jakob/inngest-work/.snapshot-e2e/app/compose-state-proxy-e2e.yml
-  -f /home/jakob/inngest-work/.snapshot-e2e/compose-memory-cap.yml
-  -f /tmp/simcity-remote-iroh.yml
-)
-
-umask 077
-docker compose "${compose_args[@]}" config --format json \
-  >/tmp/simcity-remote-e2e-compose-base.json
-jq -f /home/jakob/.codex/skills/testing-simcity-e2e/scripts/clickhouse-safety-overlay.jq \
-  /tmp/simcity-remote-e2e-compose-base.json \
-  >/tmp/simcity-remote-e2e-clickhouse-safety.json
-docker compose "${compose_args[@]}" \
-  -f /tmp/simcity-remote-e2e-clickhouse-safety.json \
-  config --format json >/tmp/simcity-remote-e2e-compose.json
-
-jq -e --slurpfile base /tmp/simcity-remote-e2e-compose-base.json '
-  ([.services[].mem_limit | tonumber] | add) < (20 * 1024 * 1024 * 1024) and
-  all(.services[]; (.mem_limit | tonumber) > 0) and
-  .services.clickhouse.restart == "no" and
-  .services.clickhouse.logging.driver == "local" and
-  .services.clickhouse.logging.options["max-size"] == "20m" and
-  .services.clickhouse.logging.options["max-file"] == "3" and
-  ((.services | del(.clickhouse)) ==
-   ($base[0].services | del(.clickhouse)))
-' \
-  /tmp/simcity-remote-e2e-compose.json
-```
-
-The ClickHouse-only override trades its unlimited log history and automatic
-restart for a hard log bound and visible failure: three 20 MiB local-driver
-files. The equality assertion proves the override did not change any other
-service. Do not broaden this policy to unrelated containers.
-
-Start the exact verified configuration without pulling:
-
-```sh
-docker compose "${compose_args[@]}" \
-  -f /tmp/simcity-remote-e2e-clickhouse-safety.json \
-  up -d --pull never
-
-clickhouse_ids=($(docker ps -q \
-  --filter label=com.docker.compose.project=simcity-remote-e2e \
-  --filter label=com.docker.compose.service=clickhouse))
-test "${#clickhouse_ids[@]}" -eq 1
-docker inspect "${clickhouse_ids[@]}" | jq -e '
-  all(.[];
-    .HostConfig.RestartPolicy.Name == "no" and
-    .HostConfig.LogConfig.Type == "local" and
-    .HostConfig.LogConfig.Config["max-size"] == "20m" and
-    .HostConfig.LogConfig.Config["max-file"] == "3")
-'
-```
-
-During a long run, recheck `df -h /`, `docker system df`, container health, and
-project log/volume growth at meaningful phase boundaries. Stop and diagnose
-the disposable project if free space approaches 20 GiB or a service enters a
-rapid error loop; do not let the test consume the host's final headroom.
-
-Expected host endpoints with the existing overlay:
-
-```text
-API:         127.0.0.1:28090
-ingest:      127.0.0.1:29999
-SDK gateway: 127.0.0.1:18099
-simcityd:    127.0.0.1:18080
-```
-
-Create the local test account using the remapped ports. `make jwt` hardcodes
-the default ports, so call the setup program directly:
-
-```sh
-go run ./scripts/test/* \
-  -api 127.0.0.1:28090 -ingest 127.0.0.1:29999 -n 0
-```
-
-If the SDK runs an event-driven function, also start the state-store proxy and
-both constraint APIs from the `extra` profile. Direct sandbox REST calls do not
-normally need those services.
-
-## 5. Start the h2c enrollment bridge
-
-Confirm the local `simcityd` startup log says `Iroh control plane online` and
-record only its public-key fingerprint.
-
-The node's bootstrap client uses prior-knowledge h2c for an `http://` control
-plane URL. The local API listener is HTTP/1.1. A raw port forward fails with:
-
-```text
-http2: frame too large, note that the frame header looked like an HTTP/1.1 header
-```
-
-Run an h2c-capable reverse proxy on `127.0.0.1:28091` targeting
-`http://127.0.0.1:28090`. A proven helper exists at:
-
-```text
-/home/jakob/inngest-work/.snapshot-e2e/h2c-proxy.go
-/home/jakob/inngest-work/.snapshot-e2e/bin/h2c-proxy
-```
-
-Start it with a bound:
-
-```sh
-systemd-run --user --unit=simcity-remote-h2c-proxy \
-  --property=MemoryMax=128M --property=MemorySwapMax=0 \
-  /home/jakob/inngest-work/.snapshot-e2e/bin/h2c-proxy
-```
-
-Choose an unused tunnel port, for example `18094`. Avoid existing ports such as
-`18090` or `18093` unless their owners are understood and intentionally removed.
-
-```sh
-ssh -fNT -o ExitOnForwardFailure=yes \
-  -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
-  -R 127.0.0.1:18094:127.0.0.1:28091 \
-  ubuntu@51.222.105.190
-```
-
-Result:
-
-```text
-dev box 127.0.0.1:18094
-  -> Odin 127.0.0.1:28091 h2c bridge
-  -> Odin 127.0.0.1:28090 API
-```
-
-## 6. Issue and transfer a fresh bootstrap token
-
-Use the API container's runtime admin credentials without printing them:
-
-```sh
-machine_id=d65f25f351114245be681fc3b1380b3d
-api_container=simcity-remote-e2e-api-1
-admin_user=$(docker inspect "$api_container" \
-  --format '{{range .Config.Env}}{{println .}}{{end}}' |
-  sed -n 's/^ADMIN_API_USER=//p')
-admin_pass=$(docker inspect "$api_container" \
-  --format '{{range .Config.Env}}{{println .}}{{end}}' |
-  sed -n 's/^ADMIN_API_PASS=//p')
-
-response=$(mktemp)
-status=$(curl -sS -u "$admin_user:$admin_pass" \
-  -o "$response" -w '%{http_code}' -X POST \
-  "http://127.0.0.1:28090/admin/v1/compute/nodes/$machine_id/bootstrap-tokens")
-test "$status" = 200
-jq -je '.data.token | select(length > 0)' "$response" \
-  >/tmp/simcity-remote-bootstrap-token
-rm -f "$response"
-chmod 600 /tmp/simcity-remote-bootstrap-token
-```
-
-Transfer Odin -> dev box with `scp`, compare SHA-256 before installation,
-install mode `0600`, and remove every transfer copy after installation.
-
-## 7. Deploy the remote node and image
-
-Transfer large EROFS files compressed directly from Odin:
-
-```sh
-zstd -T0 -3 -c artifacts/overlay.erofs |
-  ssh ubuntu@51.222.105.190 \
-    'zstd -d -c > /tmp/simcity-e2e-overlay.erofs'
-```
-
-Transfer the node binary, guest probe, and token directly with `scp`. Verify
-all hashes on the dev box before installation.
-
-Use dedicated paths:
-
-```text
-binary: /usr/local/bin/simcity-node-remote-e2e
-config: /etc/simcity/node-remote-e2e.yaml
-image:  /var/lib/simcity/images/remote-e2e-overlay.erofs
-state:  /var/lib/simcity-remote-e2e/state
-run:    /run/simcity-remote-e2e
-unit:   simcity-remote-e2e.service
-```
-
-Before writing the node config, read
-[`references/dev-box.md`](references/dev-box.md). Derive the YAML from the live
-known-working config, changing only the E2E namespace, image, token, state, and
-tunnel values. Preserve its capacity, runtime, AF_XDP, ZFS, and VM settings.
-
-Stop the approved old E2E service before touching the NIC. Stop remaining
-Cloud Hypervisor processes and remove only disposable E2E allocations/runtime
-state. ZFS clones must be destroyed before their template; do not blindly
-destroy the parent pool.
-
-Start the transient service:
-
-```sh
-sudo systemd-run --unit=simcity-remote-e2e \
-  --property=Restart=on-failure --property=RestartSec=5s \
-  --property=TimeoutStopSec=30s \
-  /usr/local/bin/simcity-node-remote-e2e \
-  --config /etc/simcity/node-remote-e2e.yaml serve
-```
-
-Verify the sequence in journald:
-
-```text
-registering simcity node with control plane
-simcity node enrolled with control plane
-connected to control plane over iroh
-simcity heartbeat succeeded
-```
-
-Verify database readiness and warm capacity, not merely service liveness:
-
-```sh
-docker exec simcity-remote-e2e-db-1 psql -U postgres -tA -c \
-  "SELECT machine_id,status,last_seen,warm_vcpu,warm_capacity
-   FROM nodes
-   WHERE machine_id='d65f25f351114245be681fc3b1380b3d'"
-```
-
-Wait for `status=ready` and `warm_vcpu >= 2` before creating a sandbox. Older
-compatible revisions may name the aggregate differently; inspect `\d nodes`
-rather than guessing when the query does not match that revision's schema.
-
-## 8. Configure sandbox entitlements
-
-The local test account is `00000000-0000-1111-0000-000000000000`. Upsert
-temporary `set` overrides for at least:
-
-```text
-sandbox_concurrency = 10
-sandbox_duration    = 3600
-```
-
-Join by entitlement name; do not assume fixed entitlement UUIDs:
-
-```sh
-docker exec -i simcity-remote-e2e-db-1 psql -U postgres <<'SQL'
-INSERT INTO account_entitlements
-  (account_id, entitlement_id, value, override_strategy, comment)
-SELECT
-  '00000000-0000-1111-0000-000000000000', id,
-  CASE name WHEN 'sandbox_concurrency' THEN 10 ELSE 3600 END,
-  'set', 'temporary local Simcity E2E override'
-FROM entitlements
-WHERE name IN ('sandbox_concurrency', 'sandbox_duration')
-ON CONFLICT (account_id, entitlement_id) DO UPDATE SET
-  value = EXCLUDED.value,
-  override_strategy = EXCLUDED.override_strategy,
-  comment = EXCLUDED.comment,
-  updated_at = now();
-SQL
-```
-
-Clear the account entitlement Redis cache afterward:
-
-```sh
-docker exec simcity-remote-e2e-redis-cache-1 redis-cli DEL \
-  cache:db:account-ents:00000000-0000-1111-0000-000000000000
-```
-
-Add snapshot count/storage overrides only for snapshot tests.
-
-## 9. Run the local SDK assertion
-
-Build/package the selected local SDK and install its tarball into a disposable
-test app. A reusable app may exist at:
-
-```text
-/home/jakob/inngest-work/.snapshot-e2e/app
-```
-
-Confirm its `package.json` points to a local `file:` tarball. Never silently
-fall back to the published `inngest` package.
-
-Source the current API container's signing key without printing it:
-
-```sh
-signing_key=$(docker inspect simcity-remote-e2e-api-1 \
-  --format '{{range .Config.Env}}{{println .}}{{end}}' |
-  sed -n 's/^INNGEST_SIGNING_KEY=//p')
-
-INNGEST_SIGNING_KEY="$signing_key" \
-INNGEST_API_BASE_URL=http://127.0.0.1:28090 \
-pnpm exec tsx path/to/e2e-script.ts
-```
-
-The test should use `inngest.sandboxes.create`, wait until `RUNNING`, call
-`sandbox.commands.run`, assert exact stdout/stderr/exit code, and destroy the
-sandbox in `finally`.
-
-For a rootfs/tooling smoke test, assert absolute executable resolution, file
-operations, and a real HTTPS fetch. Example guest command:
-
-```sh
-set -eu
-export PATH=/bin:/sbin
-
-# Normal sandbox launch currently writes resolv.conf but does not bring eth0
-# up or request DHCP. Explicitly initialize it for network-dependent tests.
-udhcpc -f -n -q -t 5 -T 2 \
-  -i eth0 -s /usr/share/udhcpc/default.script
-
-git --version
-ssh -V 2>&1
-ssh -G github.com </dev/null >/tmp/ssh-config
-which git
-which cp
-which rm
-which chmod
-which touch
-
-touch /tmp/source
-chmod 600 /tmp/source
-cp /tmp/source /tmp/copied
-test -f /tmp/copied
-rm /tmp/source /tmp/copied
-
-git clone --depth 1 \
-  https://github.com/octocat/Hello-World.git /tmp/hello-world
-test -f /tmp/hello-world/README
-git -C /tmp/hello-world rev-parse --short HEAD
-```
-
-Do not hide the explicit DHCP step in reporting. Automatic guest network
-initialization is a separate Simcity runtime concern from package availability.
-
-## 10. Troubleshoot and clean up
-
-Use the boundary-oriented diagnosis table and complete cleanup checklist in
-[`references/dev-box.md`](references/dev-box.md). Cleanup is part of the test,
-not an optional follow-up. At minimum, destroy the SDK sandbox, stop the remote
-E2E node and its VM, remove token copies and both tunnels, stop the h2c bridge,
-remove only this Compose project and its volumes, and verify no matching
-listener/container/volume/VM remains. Leave unrelated services untouched.
-
-Retain the memory-bounded local Compose stack after the final test only when
-the user explicitly asks for post-test retention. Always destroy workload
-sandboxes, remote E2E VMs/services, tunnels, and token copies before the final
-report; a future unattended timer cannot rely on the forwarded SSH agent to
-clean them.
-For an explicitly retained local stack, give it a maximum six-hour renewable
-lease using the procedure in `references/dev-box.md`, then report the project
-name, expiry, exact cleanup command, and disk usage. If the cleanup timer cannot
-be installed and verified, tear down before the final report. Never silently
-adopt or extend a retained stack in a later conversation.
+Build the selected monorepo `cmd/all-in-one`, `cmd/sdkgateway`, and account setup
+program `./scripts/test` in its Nix development environment. Package a compatible
+local SDK and install its tarball in the test app; never silently substitute the
+registry package. Run focused tests appropriate to the requested source change.
+Record revisions and hashes. Never commit generated EROFS/boot artifacts.
+
+The VM topology was validated on 2026-10-14 with Simcity
+`3f033d26a0aed966143fe051e33cf6557d467231` (merged #75), monorepo
+`bf29c578c4c9805013214279e194e8e22844eab6`, and SDK
+`eb59bd901970f28ea2a15d85a7c2eed1d4ef459a`. These are a historical baseline,
+not defaults that override a requested candidate. The retained run evidence is
+at `/home/jakob/inngest-work/e2e-results/simcity-control-vm-20261014/`;
+its dated setup scripts are evidence, not a substitute for this procedure.
+
+## Start, exercise, and verify
+
+1. Follow the selected topology reference to prepare its runtime host.
+2. Use [control-plane setup](references/control-plane.md) for bounded Compose,
+   fresh identities, S3, account setup, entitlements, and the bootstrap token.
+3. Use [the dev-box reference](references/dev-box.md) to install the matched
+   node and boot artifacts in an isolated namespace and verify enrollment,
+   Iroh connectivity, fresh heartbeats, and ready warm capacity.
+4. Run the SDK test on the control-plane host: inside the VM by default, on
+   Odin in alternative mode. Run it as a bounded service so the test does not
+   depend on an open management SSH session. Assert real guest output, exit
+   codes, and the behavior being tested; destroy sandboxes in `finally`.
+5. For snapshot/clone/resume changes, test the complete lifecycle. For capacity
+   reclamation, fill the governed budget, prove clone and resume reclaim warm
+   capacity, reject a further allocation when all capacity is active, verify
+   the active guests survive, and check destroy refills the pool. Do not apply
+   the small pressure-test budget to every kind of E2E.
+
+For networking tests, assert guest DNS and HTTPS without manually configuring
+the guest first. The validated merged #75 build needed no manual DHCP step. If
+an older target requires `udhcpc`, make that an explicit diagnostic workaround;
+do not mask a network-initialization regression or report it as automatic.
+
+## Resource bounds, cleanup, and reporting
+
+- Require at least 40 GiB of disk headroom on each host that builds artifacts or
+  hosts the full stack. Stop and diagnose a shrinking disposable stack before
+  it consumes the host's final 20 GiB. Inspect memory and existing load too.
+- Bound the control-plane VM and Docker service. Give every container a memory
+  limit and no swap; the aggregate container limits must fit the VM. Apply
+  only the ClickHouse-specific restart/logging override documented in the
+  control-plane reference. Preserve other services' authored restart policies.
+- Each independent control plane needs fresh Iroh credentials and matching
+  signing configuration. Keep secrets and rendered configs mode `0600`; do
+  not print tokens, signing keys, or credential bundles.
+- Ordinary lifecycle tests use disposable S3 in the control plane. Cloud auth
+  is needed only when the requested test actually exercises cloud storage.
+
+Cleanup is part of completion: destroy test sandboxes/snapshots; stop the node
+and its owned guests; remove its ZFS allocations/templates, BPF pins, state,
+token copies, binary, and config; tear down Compose and proxy; then remove the
+control-plane VM/disk/key/TAP/nftables table and restore saved forwarding state.
+In Odin mode, remove the exact tunnel processes instead of VM resources. Use
+the mode-specific cleanup details and leave unrelated resources untouched.
+
+Retain a control plane after the final test only when explicitly requested.
+Use a verified, at-most-six-hour renewable teardown timer on the host that owns
+it: the dev box for a retained VM, Odin for an Odin stack. It must run without
+the Mac SSH agent. Clean sandbox/node resources first. Do not retain a VM with
+only an Odin-side timer that depends on future SSH access. Report the lease and
+exact cleanup command; if automatic cleanup cannot be verified, tear down.
+Permission to keep an environment while testing does not imply final retention.
+
+Check disposable workspaces for changes before forgetting/removing them.
+Restore only generated artifacts owned by the test. Retain small, redacted
+results and scripts; remove large transfer bundles and temporary credentials.
+
+Report topology, source versions, hashes, asserted output, node capacity,
+observed Iroh transport, resource limits/headroom, and cleanup state. Distinguish
+build location from runtime location, setup failures from application failures,
+and tested paths from untested production behavior.
