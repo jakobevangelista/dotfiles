@@ -49,6 +49,7 @@
         claude-code = prev.callPackage ./pkgs/claude-code { };
         codex = prev.callPackage ./pkgs/codex { };
         grok = prev.callPackage ./pkgs/grok { };
+        muse = prev.callPackage ./pkgs/muse { };
         opencode = prev.callPackage ./pkgs/opencode { };
       };
     in
@@ -66,6 +67,7 @@
           update-claude-code
           update-codex
           update-grok
+          update-muse
           update-opencode
           ;
 
@@ -117,6 +119,7 @@
           update-claude-code = mkUpdaterApp "update-claude-code";
           update-codex = mkUpdaterApp "update-codex";
           update-grok = mkUpdaterApp "update-grok";
+          update-muse = mkUpdaterApp "update-muse";
           update-opencode = mkUpdaterApp "update-opencode";
         };
 

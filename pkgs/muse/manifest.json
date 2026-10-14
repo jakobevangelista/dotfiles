@@ -1,0 +1,42 @@
+{
+  "version": "1.4.7-R6101.1",
+  "checksum_algorithm": "sha256",
+  "artifacts": {
+    "x86_macos": {
+      "url": "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.7-R6101.1&file=muse-x86-macos",
+      "checksum": "6d766da6601a0aae8bd22294c0854970286e1b9ade3009f0d0289b7875a10c58",
+      "size": 380381680
+    },
+    "aarch64_macos": {
+      "url": "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.7-R6101.1&file=muse-aarch64-macos",
+      "checksum": "87ff5a31b63e30b6ac04d3e8298285517e753c126fb6f3aee80accf28c4562f1",
+      "size": 358892272
+    },
+    "x86_linux": {
+      "url": "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.7-R6101.1&file=muse-x86-linux",
+      "checksum": "36e3dac91f56c15572b95be55d70ee9fd9685cd9ab49f747bab4746c8d7c2518",
+      "size": 363518168
+    },
+    "aarch64_linux": {
+      "url": "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.7-R6101.1&file=muse-aarch64-linux",
+      "checksum": "48db3c7468cd4f401eff9b415fb7e0cdfe0351fb1730649ceae2a0f766e23b85",
+      "size": 325916776
+    },
+    "universal_macos_pkg": {
+      "url": "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.7-R6101.1&file=muse.pkg",
+      "checksum": "73e6890837740e6fd22191917b3a59624794e21ceaa160ca052e9b1df06581b5",
+      "size": 281833859
+    },
+    "x86_windows": {
+      "url": "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.7-R6101.1&file=muse-x86-windows.exe",
+      "checksum": "2d1ac7af0a9ea77643cb8690eee70f52f0f8476c46b194f143c831f481aea59d",
+      "size": 467174136
+    },
+    "aarch64_windows": {
+      "url": "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.7-R6101.1&file=muse-aarch64-windows.exe",
+      "checksum": "6580be6e5ab03b7a1e3ebe427b50693f6adce4e52ea808c5ea87ba07ccac2b9f",
+      "size": 427460856
+    }
+  },
+  "msp_schema_fingerprint": "sha256:6de32db08bbbe0deb478d2bfcaba001e9fb490986bc80db3aceb4d996abf7df9"
+}

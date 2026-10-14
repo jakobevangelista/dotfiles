@@ -331,8 +331,8 @@ sudo nixos-rebuild switch --flake ~/dotfiles#odin
 
 ### Updating Odin AI CLI Packages
 
-Claude Code, Codex, Grok, and OpenCode are locally pinned for Odin so they
-can track upstream releases without waiting for nixpkgs. To update all four with the
+Amp, Claude Code, Codex, Grok, Muse, and OpenCode are locally pinned for Odin so they
+can track upstream releases without waiting for nixpkgs. To update all six with the
 flake-provided updater app and verify that each changed package builds:
 
 ```bash
@@ -350,13 +350,18 @@ The individual updater apps are available when you need to update or rebuild one
 package:
 
 ```bash
+nix run .#update-amp -- [latest|VERSION] [--force]
 nix run .#update-claude-code -- [latest|VERSION] [--force]
 nix run .#update-codex -- [latest|VERSION] [--force]
 nix run .#update-grok -- [latest|VERSION] [--force]
+nix run .#update-muse -- [latest|VERSION] [--force]
 nix run .#update-opencode -- [latest|VERSION] [--force]
 ```
 
-After committing/pushing the updated pins, apply them on Odin:
+Muse uses the stable channel and checksum manifest from Meta's official installer.
+Its binary is managed by Nix; run `muse` after activation to sign in.
+
+Apply the updated pins on Odin:
 
 ```bash
 sudo nixos-rebuild switch --flake ~/dotfiles#odin

@@ -525,6 +525,118 @@ let
     '';
   };
 
+  updateMuse = writeShellApplication {
+    name = "update-muse";
+    inherit runtimeInputs;
+    text = ''
+      usage() {
+        cat <<'EOF'
+      Usage: update-muse [latest|VERSION] [--force]
+
+      Updates pkgs/muse/manifest.json to an official Muse stable release
+      and verifies that the resulting Nix package builds.
+
+      Examples:
+        nix run .#update-muse
+        nix run .#update-muse -- latest
+        nix run .#update-muse -- 1.4.7-R6101.1
+      EOF
+      }
+
+      requested_version="''${1:-latest}"
+      force=false
+      channel_url="https://api.meta.ai/muse-code/channels/muse-stable"
+      base_url="https://lookaside.facebook.com/lookaside/muse/download/"
+
+      if [ "''${requested_version}" = "-h" ] || [ "''${requested_version}" = "--help" ]; then
+        usage
+        exit 0
+      fi
+
+      if [ "$#" -gt 2 ]; then
+        usage >&2
+        exit 1
+      elif [ "''${2:-}" = "--force" ]; then
+        force=true
+      elif [ -n "''${2:-}" ]; then
+        usage >&2
+        exit 1
+      fi
+
+      ${repoRootSnippet}
+
+      manifest_file="''${repo_root}/pkgs/muse/manifest.json"
+      flake_attr="path:''${repo_root}#nixosConfigurations.odin.pkgs.muse"
+
+      if [ ! -f "''${manifest_file}" ]; then
+        echo "Missing manifest file: ''${manifest_file}" >&2
+        exit 1
+      fi
+
+      if [ "''${requested_version}" = "latest" ]; then
+        version="$(curl -fsSL "''${channel_url}" | jq -er '.version')"
+      else
+        version="''${requested_version#v}"
+      fi
+
+      if [[ ! "''${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-R[0-9]+(\.[0-9]+)?$ ]]; then
+        echo "Invalid Muse version: ''${version}" >&2
+        exit 1
+      fi
+
+      manifest_json="$(curl -fsSL "''${base_url}?channel=muse&version=''${version}&file=manifest.json")"
+      if ! printf '%s' "''${manifest_json}" | jq -e --arg version "''${version}" '
+        .version == $version and
+        .checksum_algorithm == "sha256" and
+        (.artifacts.x86_linux.checksum | test("^[0-9a-fA-F]{64}$")) and
+        (.artifacts.x86_linux.url | startswith("https://lookaside.facebook.com/")) and
+        (.artifacts.x86_linux.size | type == "number" and . > 0)
+      ' >/dev/null; then
+        echo "Invalid Muse manifest for ''${version}." >&2
+        exit 1
+      fi
+
+      current_manifest="$(jq -S . "''${manifest_file}")"
+      new_manifest="$(printf '%s' "''${manifest_json}" | jq -S .)"
+      if [ "''${current_manifest}" = "''${new_manifest}" ] && [ "''${force}" != true ]; then
+        echo "Muse is already pinned to ''${version}. Use --force to rebuild."
+        exit 0
+      fi
+
+      backup="$(mktemp)"
+      cp "''${manifest_file}" "''${backup}"
+      tmp_home=""
+
+      restore_on_error() {
+        local status=$?
+        if [ "''${status}" -ne 0 ]; then
+          cp "''${backup}" "''${manifest_file}"
+          echo "Restored ''${manifest_file} after failed update." >&2
+        fi
+        rm -f "''${backup}"
+        if [ -n "''${tmp_home}" ]; then
+          rm -rf "''${tmp_home}"
+        fi
+        exit "''${status}"
+      }
+      trap restore_on_error EXIT
+
+      printf '%s\n' "''${manifest_json}" | jq . > "''${manifest_file}"
+
+      echo "Building Muse ''${version}..."
+      out_path="$(${nixCommand} build --no-update-lock-file --no-link --print-out-paths "''${flake_attr}")"
+      tmp_home="$(mktemp -d)"
+      actual_version="$(cd "''${tmp_home}" && HOME="''${tmp_home}" "''${out_path}/bin/muse" --version)"
+
+      if [[ "''${actual_version}" != *"''${version}"* ]]; then
+        echo "Built Muse reported ''${actual_version}, expected ''${version}." >&2
+        exit 1
+      fi
+
+      echo "Updated ''${manifest_file}"
+    '';
+  };
+
   updateOpencode = writeShellApplication {
     name = "update-opencode";
     inherit runtimeInputs;
@@ -668,6 +780,7 @@ let
         - Claude Code
         - Codex
         - Grok
+        - Muse
         - OpenCode
       EOF
       }
@@ -696,6 +809,9 @@ let
       echo "==> update-grok"
       "${updateGrok}/bin/update-grok" latest "''${force_arg[@]}"
 
+      echo "==> update-muse"
+      "${updateMuse}/bin/update-muse" latest "''${force_arg[@]}"
+
       echo "==> update-opencode"
       "${updateOpencode}/bin/update-opencode" latest "''${force_arg[@]}"
     '';
@@ -707,5 +823,6 @@ in
   "update-claude-code" = updateClaudeCode;
   "update-codex" = updateCodex;
   "update-grok" = updateGrok;
+  "update-muse" = updateMuse;
   "update-opencode" = updateOpencode;
 }

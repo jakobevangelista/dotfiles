@@ -49,6 +49,7 @@ in {
       go
       ghostty.terminfo
       jq
+      muse
       neovim
       ngrok
       opencode
