@@ -69,6 +69,10 @@ Simcity revision `6061b3f6`, the supported baseline is:
   template. `shared` can preserve an existing bond, but that alone does not
   validate AF_XDP packet flow. Linux documents native XDP support for 802.3ad
   ([bonding FAQ](https://www.kernel.org/doc/html/latest/networking/bonding.html#what-bonding-modes-support-native-xdp));
+  this does not establish AF_XDP socket compatibility with a bond. The NYC
+  hosts below use physical NICs directly; Hivelocity's initial LACP bond was
+  removed before the node became ready. Preserve that working layout during
+  routine updates rather than reintroducing a bond from a provisioning template;
   validate the actual kernel, driver, socket binding, and guest networking before
   admission. Do not change the provider's LACP configuration without resolving
   its switch-side requirements.
@@ -185,10 +189,75 @@ root key.
    Update fleet documentation with verified address, name, and machine ID only
    after successful enrollment. Record exact progress if auth blocks the work.
 
+## NYC nodes inspected 2026-10-07
+
+Both hosts had an active `simcity-node.service`, a locally READY heartbeat,
+healthy `simcity` ZFS, and root-owned mode-0600 stored enrollment credentials.
+The runtime bootstrap token was absent. Hivelocity readiness was checked at
+21:28 UTC and Latitude at 21:48 UTC; network details were checked at 21:49 UTC.
+These are dated host observations, not an authenticated live Admin API fleet
+inventory or an independent SDK E2E. Recheck control-plane membership and
+workloads before an operation; neither host should be treated as a fresh
+candidate awaiting initialization or a new bootstrap token.
+
+| Item | Hivelocity NYC | Latitude NYC |
+|---|---|---|
+| Public IPv4 | `66.165.235.34` | `64.34.89.45` |
+| Configured Simcity name | `prod-sandbox-hive-nyc-01` | `prod-sandbox-lat-nyc-1` |
+| OS hostname | `compassionate-austin` | `prod-sandbox-lat-nyc-1` |
+| Operator login | `jakob@`; root SSH also verified | `jakob@` |
+| Privileged inspection | `jakob` required a sudo password; used root SSH | `sudo -n` worked |
+| Running kernel | `7.0.0-38-generic` | `7.0.0-38-generic` |
+| AF_XDP uplink | `enp1s0f0`, Intel `ixgbe`, 10 Gb/s | `eno1`, Intel `i40e`, 10 Gb/s |
+| Public address / gateway | `66.165.235.34/30` via `66.165.235.33` | `64.34.89.45/31` via `64.34.89.44`; also public IPv6 |
+| Second port | `enp1s0f1`: no carrier, no IP | `eno2`: 1 Gb/s link, no IPv4, link-local IPv6 only |
+| Host networking | No bond; IP/default route moved to the physical uplink | No bond; IP/default route on `eno1` |
+| Persistent netplan | `/etc/netplan/00-installer-config.yaml` | `/etc/netplan/50-cloud-init.yaml` |
+| Governed CPU / RAM | 120 vCPU / 503336 MiB | 88 vCPU / 245301 MiB |
+| Slots (`1vcpu` / `2vcpu` / `4vcpu`) | Total 81/8/4; warm 77/8/4 | Total 59/5/2; warm 56/5/2 |
+
+Provider/location labels were reported by the operator. Both nodes used the
+production API `https://api.inngest.com/`, AF_XDP with a driver-mode XDP program
+attached to the physical uplink, guest MTU 1450, NAT ports 16384–65535, and 1024
+maximum flows per workload. Capacity and warm counts are observations, not
+prescribed profile overrides. Root-owned `/etc/simcity/node.yaml` was mode 0640
+on both hosts; inspect only relevant nonsecret fields.
+
+Hivelocity originally arrived with a two-port 802.3ad LACP bond. The operator
+removed it to get this AF_XDP setup working, and the physical-uplink layout was
+present after reboot. Its second port is a spare for manual recovery, not
+automatic failover. Do not assume the spare is administratively disabled:
+inspection showed it administratively up without carrier. No bond-based
+failover was configured on either host.
+
+Both `jakob@` logins accepted the Inngest work key from the forwarded MacBook
+1Password agent. Match the public-key fingerprint rather than selecting by a
+similar label:
+
+- Accepted key: `SHA256:Ue9fVeyyNxSM5BbpwsngfOtELaunfJ1vLG15kDfbl1Q`,
+  agent label `jakob-goated-macbook inngest key`.
+- Ansible account/key definition:
+  `/home/jakob/inngest-work/ansible/roles/common/vars/main.yml`, user `jakob`.
+- When selecting explicitly, use `IdentitiesOnly=yes` and `-i` pointing to the
+  matching **public** key file; signing stays in the forwarded agent. Keep
+  `SSH_AUTH_SOCK` explicit and disable onward forwarding with `ssh -a`.
+- Earlier Latitude `Permission denied (publickey)` responses occurred while
+  provisioning was incomplete; the same work key subsequently succeeded.
+  A rejection alone does not prove that 1Password selected the wrong key.
+
+Recorded ED25519 server fingerprints:
+
+| Host | Fingerprint |
+|---|---|
+| `66.165.235.34` | `SHA256:ojeAWEzpNPjs5gD5wT7Twnk3vRQQ8PQruOSamloL6XE` |
+| `64.34.89.45` | `SHA256:vFaYc9gggJmqXhHT4uivu2E0zfZwlePTQHS9xMJKrFI` |
+
 ## Candidate inspected 2026-10-02
 
-`66.165.235.34` is a candidate, not an enrolled third production node. Recheck
-these dated observations before provisioning:
+**Historical pre-provisioning snapshot, superseded by the October 7 record
+above.** At this inspection, `66.165.235.34` was still a candidate. The old
+kernel, bond, unused data disk, and missing runtime below describe that earlier
+state, not the current host; do not use them to authorize initialization.
 
 | Item | Observed |
 |---|---|
@@ -246,8 +315,9 @@ Resolve the complete intended artifact set before onboarding; do not assume
 the workspace's image is the one running in production.
 
 Root SSH, Odin production AWS/EKS access, and SOPS decryption of an existing
-production host file all worked. Still needed for provisioning/testing: provider
+production host file all worked on October 2. Outstanding at that time: provider
 console/rescue access (or an available operator), the new host's OOB secret,
 machine-bound enrollment token via the Admin API, and a production test-workspace
 signing key (`/tmp/simcity-prod-sdk.env` was absent). Neither provisioning nor
-enrollment was performed during this inspection.
+enrollment was performed during that inspection; this is not the current access
+or enrollment status.

@@ -45,13 +45,22 @@ not a fixed fleet size; a proposed machine is not an enrolled node.
 | MacBook SSH-agent source | `jakob@100.75.136.81` |
 | Production node 1 | `ubuntu@67.213.115.17` (`prod-sandbox-lat-iad-1`) |
 | Production node 2 | `ubuntu@45.250.254.57` (`prod-sandbox-lat-iad-2`) |
-| Candidate awaiting provisioning (inspected 2026-10-02) | `root@66.165.235.34`; see [inspection record](references/onboarding.md#candidate-inspected-2026-10-02) |
+| Production Hivelocity NYC node | `jakob@66.165.235.34` (`prod-sandbox-hive-nyc-01`); privileged inspection used `root@` |
+| Production Latitude NYC node | `jakob@64.34.89.45` (`prod-sandbox-lat-nyc-1`); passwordless sudo verified |
 | Node 1 machine ID | `fd355cbb62214c27bbab4337a9d970da` |
 | Node 2 machine ID | `425a613b96d6404481c2f493f8002a84` |
 | Production Kubernetes context | `arn:aws:eks:us-east-2:836356947314:cluster/main` |
 | Production API | `https://api.inngest.com` |
 | Simcity deployment bundle | `<simcity-checkout>/infra/ansible` |
 | Odin SDK checkouts | `/home/jakob/inngest-work/inngest-js*` |
+
+Both NYC nodes were running and locally READY on 2026-10-07, with stored
+enrollment credentials. This did not independently verify their current
+control-plane membership. Read the [NYC inspection record](references/onboarding.md#nyc-nodes-inspected-2026-10-07)
+for the exact SSH identity, host fingerprints, privilege differences, physical
+uplinks, and capacity snapshots. The Hivelocity OS hostname is
+`compassionate-austin`; its configured Simcity name is `prod-sandbox-hive-nyc-01`.
+Node names are not a substitute for the CLI-reported enrollment machine ID.
 
 Private node keys stay in the MacBook's 1Password SSH agent. Start the
 controller session from the Mac and keep it open:
@@ -84,10 +93,14 @@ stable_sock=/home/jakob/.ssh/mac-forwarded-agent.sock
 test "$(hostname)" = odin
 test -S "$stable_sock"
 command -v ansible-playbook sops aws kubectl
-SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
+SSH_AUTH_SOCK="$stable_sock" ssh -a -o BatchMode=yes \
   ubuntu@67.213.115.17 'hostname; whoami'
-SSH_AUTH_SOCK="$stable_sock" ssh -o BatchMode=yes \
+SSH_AUTH_SOCK="$stable_sock" ssh -a -o BatchMode=yes \
   ubuntu@45.250.254.57 'hostname; whoami'
+SSH_AUTH_SOCK="$stable_sock" ssh -a -o BatchMode=yes \
+  jakob@66.165.235.34 'hostname; whoami'
+SSH_AUTH_SOCK="$stable_sock" ssh -a -o BatchMode=yes \
+  jakob@64.34.89.45 'hostname; whoami'
 ```
 
 Run the rest of this workflow on Odin. Also verify `hostname`, required tools,
@@ -214,8 +227,11 @@ prod-sandbox-lat-iad-2 -> 45.250.254.57
 simcity_control_plane_url -> https://api.inngest.com/
 ```
 
-Reconcile additional hosts with their approved onboarding records and the live
-node list. Always pass one explicit host limit, including after fleet growth.
+Reconcile the NYC entries in the topology table and any additional hosts with
+the selected revision's inventory and the live node list. Verify the inventory
+alias before choosing a limit; the table does not prove an older inventory
+contains the host. Always pass one explicit host limit, including after fleet
+growth.
 
 The deploy task list may discover the active uplink and update the node,
 guest probe, EROFS image, config, and unit. Stop if it includes kernel,
