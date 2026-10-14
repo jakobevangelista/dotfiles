@@ -52,7 +52,7 @@ in
 
     firewall = {
       trustedInterfaces = [ ];
-      interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+      interfaces.tailscale0.allowedTCPPorts = [ 22 443 ];
 
       # LAN fallback for Jakob's MacBook. Keep these IPs reserved in DHCP.
       extraCommands = ''
@@ -116,6 +116,8 @@ in
   services.tailscale = {
     enable = true;
     openFirewall = true;
+    # Let Jakob's T3 service configure its private HTTPS endpoint.
+    extraSetFlags = [ "--operator=${username}" ];
   };
 
   virtualisation.docker = {

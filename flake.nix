@@ -60,6 +60,7 @@
         pscale = linuxPkgs.callPackage ./pkgs/pscale { };
         work = linuxPkgs.callPackage ./pkgs/work { };
         odin-sessions = linuxPkgs.callPackage ./pkgs/odin-sessions { };
+        t3code = linuxPkgs.callPackage ./pkgs/t3code { };
 
         inherit (aiUpdaters)
           update-ai-tools
@@ -166,7 +167,10 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.users.${odinUsername} = import ./homes/odin.nix;
+            home-manager.users.${odinUsername}.imports = [
+              ./homes/odin.nix
+              ./modules/home/t3code.nix
+            ];
           }
         ];
       };

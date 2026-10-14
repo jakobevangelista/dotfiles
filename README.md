@@ -297,6 +297,56 @@ boundary, storage model, MacBook SSH setup, and operating commands.
 
 API keys are stored in `~/.env` (not tracked in git). This file is sourced automatically by zsh on startup.
 
+### T3 Code on Odin
+
+Odin runs T3 Code headlessly as Jakob's `t3code.service` user service, managed by
+Home Manager in `modules/home/t3code.nix`. User lingering starts it at boot and
+keeps it running after logout; systemd restarts it after a failure. Tailscale Serve
+publishes it at **https://odin.tail1d42c.ts.net/** for devices allowed by the
+tailnet's access policy. T3 Code still requires device pairing. Its backend
+listens on `127.0.0.1:3773`; no SSH tunnel is needed for the HTTPS endpoint.
+Existing projects, threads, settings, and pairings stay under `~/.t3`. Provider
+CLIs come from Jakob's normal user/system package paths.
+
+For the first transition from the temporary trial, wait for active agents and
+terminal commands to finish, then apply and start the managed service:
+
+```bash
+sudo nixos-rebuild switch --flake ~/dotfiles#odin
+systemctl --user start t3code.service
+```
+
+Starting the managed service stops `t3code-trial.service` before it binds the
+same port. The service's `--tailscale-serve` flag configures the private HTTPS
+proxy using Jakob's existing Tailscale operator permission. If Tailscale asks
+for HTTPS to be enabled, follow its admin-console link once.
+
+To pair a MacBook, phone, or another tailnet device, run this on Odin:
+
+```bash
+t3 pair --tailscale
+```
+
+Open the printed link on that device, or paste it into T3 Code's
+**Settings → Connections → Add environment**. Generate a fresh link for each
+device. Existing SSH-based pairings can add this HTTPS address as another route.
+
+```bash
+systemctl --user status t3code
+journalctl --user -u t3code -f
+systemctl --user restart t3code
+systemctl --user stop t3code
+tailscale serve status
+```
+
+T3 Code's headless CLI is pinned to nightly `0.0.46-nightly.20261013.3080` in
+`pkgs/t3code/default.nix`, with its native binaries patched for NixOS. To upgrade,
+update the version and release archive hash there, build `.#t3code`, then rebuild
+Odin when agents are idle. Nightlies stay pinned until this explicit update;
+the system-wide `flake.lock` is unchanged. Manage upgrades through Nix rather
+than `t3 update` or `t3 service install`. The web UI served by Odin matches its
+server; use a compatible nightly client if connecting from the Mac desktop app.
+
 ## Updating
 
 After pulling or editing macOS configuration, rebuild with the target matching
