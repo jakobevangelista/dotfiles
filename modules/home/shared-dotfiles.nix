@@ -64,6 +64,10 @@ in
       source = ../../.config/agents/skills/using-muninn;
       force = true;
     };
+    ".codex/skills/using-buildkite-runners" = {
+      source = ../../.config/agents/skills/using-buildkite-runners;
+      force = true;
+    };
     ".codex/skills/using-inngest-prod-kubernetes" = {
       source = ../../.config/agents/skills/using-inngest-prod-kubernetes;
       force = true;

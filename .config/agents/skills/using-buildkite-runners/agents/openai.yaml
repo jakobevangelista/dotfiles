@@ -1,0 +1,4 @@
+interface:
+  display_name: "Access Buildkite Runners"
+  short_description: "Connect to OVH Buildkite hosts and runner VMs"
+  default_prompt: "Use $using-buildkite-runners to connect from Odin with the forwarded 1Password work key and inspect the requested runner hosts or VMs."
